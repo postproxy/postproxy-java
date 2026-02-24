@@ -154,6 +154,51 @@ var result = client.posts().delete("post-id");
 System.out.println(result.deleted()); // true
 ```
 
+### Post Stats
+
+Retrieve stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time.
+
+```java
+import dev.postproxy.sdk.param.GetStatsParams;
+import java.util.List;
+
+// Get stats for posts
+var stats = client.posts().stats(GetStatsParams.builder()
+    .postIds(List.of("post-id-1", "post-id-2"))
+    .build());
+
+// Iterate results
+stats.data().forEach((postId, postStats) -> {
+    for (var platform : postStats.platforms()) {
+        System.out.println(platform.platform() + " " + platform.profileId());
+        for (var record : platform.records()) {
+            System.out.println(record.recordedAt() + ": " + record.stats());
+        }
+    }
+});
+
+// Filter by profiles/networks and time range
+var filtered = client.posts().stats(GetStatsParams.builder()
+    .postIds(List.of("post-id-1"))
+    .profiles(List.of("instagram", "twitter"))
+    .from("2026-02-01T00:00:00Z")
+    .to("2026-02-24T00:00:00Z")
+    .build());
+```
+
+The `profiles` parameter accepts network names (`instagram`, `twitter`, etc.) or profile hashids, or a mix. The `stats` map in each record contains platform-specific metrics:
+
+| Platform | Metrics |
+|---|---|
+| Instagram | impressions, likes, comments, saved, profile_visits, follows |
+| Facebook | impressions, clicks, likes |
+| Threads | impressions, likes, replies, reposts, quotes, shares |
+| Twitter | impressions, likes, retweets, comments, quotes, saved |
+| YouTube | impressions, likes, comments, saved |
+| LinkedIn | impressions |
+| TikTok | impressions, likes, comments, shares |
+| Pinterest | impressions, likes, comments, saved, outbound_clicks |
+
 ### Profiles
 
 ```java
@@ -252,6 +297,10 @@ Key types:
 | `PlatformResult` | platform, status, params, error, attemptedAt, insights |
 | `ListResponse<T>` | data |
 | `PaginatedResponse<T>` | data, total, page, perPage |
+| `StatsResponse` | data (Map&lt;String, PostStats&gt;) |
+| `PostStats` | platforms |
+| `PlatformStats` | profileId, platform, records |
+| `StatsRecord` | stats (Map), recordedAt |
 
 ### Platform parameter types
 
