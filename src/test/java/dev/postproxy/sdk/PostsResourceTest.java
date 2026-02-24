@@ -2,6 +2,7 @@ package dev.postproxy.sdk;
 
 import dev.postproxy.sdk.model.Platform;
 import dev.postproxy.sdk.param.CreatePostParams;
+import dev.postproxy.sdk.param.GetStatsParams;
 import dev.postproxy.sdk.param.InstagramParams;
 import dev.postproxy.sdk.param.ListPostsParams;
 import dev.postproxy.sdk.param.PlatformParams;
@@ -169,5 +170,92 @@ class PostsResourceTest {
         var result = posts.delete("post-1");
         assertTrue(result.deleted());
         assertEquals("DELETE", mock.getRequests().get(0).method());
+    }
+
+    private static final Map<String, Object> MOCK_STATS = Map.of(
+            "data", Map.of(
+                    "post-1", Map.of(
+                            "platforms", List.of(Map.of(
+                                    "profile_id", "prof-1",
+                                    "platform", "instagram",
+                                    "records", List.of(
+                                            Map.of(
+                                                    "stats", Map.of("impressions", 1200, "likes", 85),
+                                                    "recorded_at", "2026-02-20T12:00:00Z"
+                                            ),
+                                            Map.of(
+                                                    "stats", Map.of("impressions", 1523, "likes", 102),
+                                                    "recorded_at", "2026-02-21T04:00:00Z"
+                                            )
+                                    )
+                            ))
+                    ),
+                    "post-2", Map.of(
+                            "platforms", List.of(Map.of(
+                                    "profile_id", "prof-2",
+                                    "platform", "twitter",
+                                    "records", List.of(
+                                            Map.of(
+                                                    "stats", Map.of("impressions", 430, "likes", 22, "retweets", 5),
+                                                    "recorded_at", "2026-02-20T12:00:00Z"
+                                            )
+                                    )
+                            ))
+                    )
+            )
+    );
+
+    @Test
+    void getsStatsForPosts() {
+        var mock = new MockPostProxyClient(MOCK_STATS, 200, null);
+        var posts = new PostsResource(mock);
+
+        var result = posts.stats(GetStatsParams.builder()
+                .postIds(List.of("post-1", "post-2"))
+                .build());
+
+        assertEquals(2, result.data().size());
+
+        var post1 = result.data().get("post-1");
+        assertEquals(1, post1.platforms().size());
+        assertEquals("prof-1", post1.platforms().get(0).profileId());
+        assertEquals("instagram", post1.platforms().get(0).platform());
+        assertEquals(2, post1.platforms().get(0).records().size());
+        assertEquals(1200, post1.platforms().get(0).records().get(0).stats().get("impressions"));
+        assertEquals("2026-02-20T12:00:00Z", post1.platforms().get(0).records().get(0).recordedAt());
+
+        var post2 = result.data().get("post-2");
+        assertEquals("twitter", post2.platforms().get(0).platform());
+        assertEquals(5, post2.platforms().get(0).records().get(0).stats().get("retweets"));
+
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("post_ids=post-1,post-2"));
+    }
+
+    @Test
+    void getsStatsWithFilters() {
+        var mock = new MockPostProxyClient(MOCK_STATS, 200, null);
+        var posts = new PostsResource(mock);
+
+        posts.stats(GetStatsParams.builder()
+                .postIds(List.of("post-1"))
+                .profiles(List.of("instagram", "prof-1"))
+                .from("2026-02-01T00:00:00Z")
+                .to("2026-02-24T00:00:00Z")
+                .build());
+
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("post_ids=post-1"));
+        assertTrue(url.contains("profiles=instagram,prof-1"));
+        assertTrue(url.contains("from=2026-02-01T00:00:00Z"));
+        assertTrue(url.contains("to=2026-02-24T00:00:00Z"));
+    }
+
+    @Test
+    void statsRequiresPostIds() {
+        assertThrows(IllegalArgumentException.class, () ->
+                GetStatsParams.builder().build());
+        assertThrows(IllegalArgumentException.class, () ->
+                GetStatsParams.builder().postIds(List.of()).build());
     }
 }

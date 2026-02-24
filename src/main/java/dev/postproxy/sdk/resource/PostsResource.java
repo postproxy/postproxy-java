@@ -5,7 +5,9 @@ import dev.postproxy.sdk.PostProxyClient;
 import dev.postproxy.sdk.model.DeleteResponse;
 import dev.postproxy.sdk.model.PaginatedResponse;
 import dev.postproxy.sdk.model.Post;
+import dev.postproxy.sdk.model.StatsResponse;
 import dev.postproxy.sdk.param.CreatePostParams;
+import dev.postproxy.sdk.param.GetStatsParams;
 import dev.postproxy.sdk.param.ListPostsParams;
 import dev.postproxy.sdk.param.PlatformParams;
 
@@ -119,6 +121,18 @@ public class PostsResource {
             }
         } catch (Exception ignored) {
         }
+    }
+
+    public StatsResponse stats(GetStatsParams params) {
+        Map<String, String> query = new LinkedHashMap<>();
+        query.put("post_ids", String.join(",", params.postIds()));
+        if (params.profiles() != null && !params.profiles().isEmpty()) {
+            query.put("profiles", String.join(",", params.profiles()));
+        }
+        if (params.from() != null) query.put("from", params.from());
+        if (params.to() != null) query.put("to", params.to());
+
+        return client.get("/api/posts/stats", query, new TypeReference<>() {});
     }
 
     public Post publishDraft(String id) {
