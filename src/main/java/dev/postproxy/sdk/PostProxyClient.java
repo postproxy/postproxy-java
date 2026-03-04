@@ -49,15 +49,19 @@ public class PostProxyClient {
         return request("POST", path, queryParams, body, type);
     }
 
+    public <T> T patch(String path, Map<String, String> queryParams, Object body, TypeReference<T> type) {
+        return request("PATCH", path, queryParams, body, type);
+    }
+
     public <T> T delete(String path, Map<String, String> queryParams, TypeReference<T> type) {
         return request("DELETE", path, queryParams, null, type);
     }
 
     public <T> T postMultipart(String path, Map<String, String> queryParams,
-                                Map<String, Object> fields, List<Path> files, TypeReference<T> type) {
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type) {
         try {
             String boundary = "----PostProxy" + UUID.randomUUID().toString().replace("-", "");
-            byte[] body = buildMultipartBody(boundary, fields, files);
+            byte[] body = buildMultipartBody(boundary, fields, fileGroups);
 
             URI uri = buildUri(path, queryParams);
             HttpRequest request = HttpRequest.newBuilder()
@@ -172,7 +176,7 @@ public class PostProxyClient {
         };
     }
 
-    private byte[] buildMultipartBody(String boundary, Map<String, Object> fields, List<Path> files)
+    private byte[] buildMultipartBody(String boundary, Map<String, Object> fields, Map<String, List<Path>> fileGroups)
             throws IOException {
         var parts = new ArrayList<byte[]>();
         String crlf = "\r\n";
@@ -194,17 +198,20 @@ public class PostProxyClient {
             }
         }
 
-        if (files != null) {
-            for (Path file : files) {
-                String filename = file.getFileName().toString();
-                String contentType = guessMimeType(filename);
-                byte[] fileBytes = Files.readAllBytes(file);
+        if (fileGroups != null) {
+            for (Map.Entry<String, List<Path>> group : fileGroups.entrySet()) {
+                String fieldName = group.getKey();
+                for (Path file : group.getValue()) {
+                    String filename = file.getFileName().toString();
+                    String contentType = guessMimeType(filename);
+                    byte[] fileBytes = Files.readAllBytes(file);
 
-                parts.add(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-                parts.add(("Content-Disposition: form-data; name=\"media[]\"; filename=\"" + filename + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-                parts.add(("Content-Type: " + contentType + crlf + crlf).getBytes(StandardCharsets.UTF_8));
-                parts.add(fileBytes);
-                parts.add(crlf.getBytes(StandardCharsets.UTF_8));
+                    parts.add(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
+                    parts.add(("Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + filename + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
+                    parts.add(("Content-Type: " + contentType + crlf + crlf).getBytes(StandardCharsets.UTF_8));
+                    parts.add(fileBytes);
+                    parts.add(crlf.getBytes(StandardCharsets.UTF_8));
+                }
             }
         }
 

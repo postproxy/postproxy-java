@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.postproxy"
-version = "1.1.0"
+version = "1.2.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -32,6 +32,19 @@ tasks.test {
 
 tasks.javadoc {
     (options as StandardJavadocDocletOptions).addBooleanOption("Xdoclint:none", true)
+}
+
+sourceSets {
+    create("examples") {
+        java.srcDir("examples")
+        compileClasspath += sourceSets["main"].output + sourceSets["main"].compileClasspath
+        runtimeClasspath += sourceSets["main"].output + sourceSets["main"].runtimeClasspath
+    }
+}
+
+tasks.register<JavaExec>("runExample") {
+    classpath = sourceSets["examples"].runtimeClasspath
+    mainClass = project.findProperty("exampleClass") as String? ?: "CreatePost"
 }
 
 publishing {
