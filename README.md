@@ -146,12 +146,97 @@ var post = client.posts().create(CreatePostParams.builder()
     .scheduledAt("2025-12-25T09:00:00Z")
     .build());
 
+// Create a thread post
+import dev.postproxy.sdk.param.ThreadChildInput;
+
+var post = client.posts().create(CreatePostParams.builder()
+    .body("Thread starts here")
+    .profiles(List.of("profile-id"))
+    .thread(List.of(
+        ThreadChildInput.builder().body("Second post in the thread").build(),
+        ThreadChildInput.builder().body("Third with media")
+            .media(List.of("https://example.com/img.jpg")).build()
+    ))
+    .build());
+for (var child : post.thread()) {
+    System.out.println(child.id() + ": " + child.body());
+}
+
 // Publish a draft
 var post = client.posts().publishDraft("post-id");
 
 // Delete a post
 var result = client.posts().delete("post-id");
 System.out.println(result.deleted()); // true
+```
+
+### Threads
+
+```java
+import dev.postproxy.sdk.param.ThreadChildInput;
+
+var post = client.posts().create(CreatePostParams.builder()
+    .body("Thread starts here")
+    .profiles(List.of("profile-id"))
+    .thread(List.of(
+        ThreadChildInput.builder().body("Second post in the thread").build(),
+        ThreadChildInput.builder().body("Third with media")
+            .media(List.of("https://example.com/img.jpg")).build()
+    ))
+    .build());
+for (var child : post.thread()) {
+    System.out.println(child.id() + ": " + child.body());
+}
+```
+
+### Webhooks
+
+```java
+import dev.postproxy.sdk.param.*;
+import dev.postproxy.sdk.model.Webhook;
+
+// List webhooks
+var webhooks = client.webhooks().list();
+
+// Get a webhook
+var webhook = client.webhooks().get("wh-id");
+
+// Create a webhook
+var webhook = client.webhooks().create(CreateWebhookParams.builder()
+    .url("https://example.com/webhook")
+    .events(List.of("post.published", "post.failed"))
+    .description("My webhook")
+    .build());
+System.out.println(webhook.secret());
+
+// Update a webhook
+var webhook = client.webhooks().update("wh-id", UpdateWebhookParams.builder()
+    .events(List.of("post.published"))
+    .enabled(false)
+    .build());
+
+// Delete a webhook
+client.webhooks().delete("wh-id");
+
+// List deliveries
+var deliveries = client.webhooks().deliveries("wh-id", 0, 10);
+for (var d : deliveries.data()) {
+    System.out.println(d.eventType() + ": " + d.success());
+}
+```
+
+#### Signature verification
+
+Verify incoming webhook signatures using HMAC-SHA256:
+
+```java
+import dev.postproxy.sdk.WebhookSignature;
+
+boolean isValid = WebhookSignature.verify(
+    requestBody,                              // raw request body string
+    request.getHeader("X-PostProxy-Signature"),  // "t=...,v1=..."
+    "whsec_..."                               // webhook secret
+);
 ```
 
 ### Post Stats
@@ -291,9 +376,14 @@ Key types:
 
 | Type | Fields |
 |---|---|
-| `Post` | id, body, status, scheduledAt, createdAt, platforms |
+| `Post` | id, body, status, scheduledAt, createdAt, media, thread, platforms |
 | `Profile` | id, name, status, platform, profileGroupId, expiresAt, postCount |
 | `ProfileGroup` | id, name, profilesCount |
+| `Media` | id, type, url, status |
+| `ThreadChild` | id, body, media |
+| `ThreadChildInput` | body, media |
+| `Webhook` | id, url, events, secret, enabled, description, createdAt |
+| `WebhookDelivery` | id, eventId, eventType, responseStatus, attemptNumber, success, attemptedAt, createdAt |
 | `PlatformResult` | platform, status, params, error, attemptedAt, insights |
 | `ListResponse<T>` | data |
 | `PaginatedResponse<T>` | data, total, page, perPage |

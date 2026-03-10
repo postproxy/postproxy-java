@@ -2,17 +2,14 @@ package dev.postproxy.sdk.model;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 
-public enum PostStatus {
+public enum MediaStatus {
     PENDING("pending"),
-    DRAFT("draft"),
-    PROCESSING("processing"),
     PROCESSED("processed"),
-    SCHEDULED("scheduled"),
-    MEDIA_PROCESSING_FAILED("media_processing_failed");
+    FAILED("failed");
 
     private final String value;
 
-    PostStatus(String value) {
+    MediaStatus(String value) {
         this.value = value;
     }
 

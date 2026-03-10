@@ -9,5 +9,7 @@ public record Post(
         @JsonProperty("status") PostStatus status,
         @JsonProperty("scheduled_at") String scheduledAt,
         @JsonProperty("created_at") String createdAt,
-        @JsonProperty("platforms") List<PlatformResult> platforms
+        @JsonProperty("media") List<Media> media,
+        @JsonProperty("platforms") List<PlatformResult> platforms,
+        @JsonProperty("thread") List<ThreadChild> thread
 ) {}

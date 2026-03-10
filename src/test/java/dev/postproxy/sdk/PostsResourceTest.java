@@ -6,13 +6,18 @@ import dev.postproxy.sdk.param.GetStatsParams;
 import dev.postproxy.sdk.param.InstagramParams;
 import dev.postproxy.sdk.param.ListPostsParams;
 import dev.postproxy.sdk.param.PlatformParams;
+import dev.postproxy.sdk.param.ThreadChildInput;
 import dev.postproxy.sdk.param.TikTokParams;
 import dev.postproxy.sdk.model.InstagramFormat;
 import dev.postproxy.sdk.model.PostStatus;
 import dev.postproxy.sdk.model.TikTokPrivacy;
 import dev.postproxy.sdk.resource.PostsResource;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -257,5 +262,117 @@ class PostsResourceTest {
                 GetStatsParams.builder().build());
         assertThrows(IllegalArgumentException.class, () ->
                 GetStatsParams.builder().postIds(List.of()).build());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void createsPostWithThread() {
+        var mockResponse = Map.of(
+                "id", "post-thread",
+                "body", "Main post",
+                "status", "pending",
+                "created_at", "2025-01-01T00:00:00Z",
+                "platforms", List.of(),
+                "thread", List.of(
+                        Map.of("id", "t-1", "body", "Reply 1", "media", List.of()),
+                        Map.of("id", "t-2", "body", "Reply 2", "media", List.of())
+                )
+        );
+        var mock = new MockPostProxyClient(mockResponse, 200, null);
+        var posts = new PostsResource(mock);
+
+        var post = posts.create(CreatePostParams.builder()
+                .body("Main post")
+                .profiles(List.of("profile-1"))
+                .thread(List.of(
+                        ThreadChildInput.builder().body("Reply 1").build(),
+                        ThreadChildInput.builder().body("Reply 2")
+                                .media(List.of("https://example.com/img.jpg")).build()
+                ))
+                .build());
+
+        assertEquals("post-thread", post.id());
+        assertEquals(2, post.thread().size());
+        assertEquals("Reply 1", post.thread().get(0).body());
+
+        var body = (Map<String, Object>) mock.getRequests().get(0).body();
+        var thread = (List<ThreadChildInput>) body.get("thread");
+        assertEquals(2, thread.size());
+        assertEquals("Reply 1", thread.get(0).body());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void createsThreadWithMediaFiles(@TempDir Path tempDir) throws IOException {
+        var img1 = tempDir.resolve("thread1.jpg");
+        var img2 = tempDir.resolve("thread2.png");
+        Files.write(img1, new byte[]{1, 2, 3});
+        Files.write(img2, new byte[]{4, 5, 6});
+
+        var mockResponse = Map.of(
+                "id", "post-thread-files",
+                "body", "Main post",
+                "status", "pending",
+                "created_at", "2025-01-01T00:00:00Z",
+                "platforms", List.of(),
+                "thread", List.of(
+                        Map.of("id", "t-1", "body", "Reply 1", "media", List.of()),
+                        Map.of("id", "t-2", "body", "Reply 2", "media", List.of())
+                )
+        );
+        var mock = new MockPostProxyClient(mockResponse, 200, null);
+        var posts = new PostsResource(mock);
+
+        var post = posts.create(CreatePostParams.builder()
+                .body("Main post")
+                .profiles(List.of("profile-1"))
+                .thread(List.of(
+                        ThreadChildInput.builder().body("Reply 1")
+                                .mediaFiles(List.of(img1)).build(),
+                        ThreadChildInput.builder().body("Reply 2")
+                                .media(List.of("https://example.com/img.jpg"))
+                                .mediaFiles(List.of(img2)).build()
+                ))
+                .build());
+
+        assertEquals("post-thread-files", post.id());
+
+        // Should use multipart path
+        var body = (Map<String, Object>) mock.getRequests().get(0).body();
+        assertEquals("Main post", body.get("post[body]"));
+        assertEquals("Reply 1", body.get("thread[0][body]"));
+        assertEquals("Reply 2", body.get("thread[1][body]"));
+        assertEquals(List.of("https://example.com/img.jpg"), body.get("thread[1][media][]"));
+
+        var fileGroups = (Map<String, List<Path>>) body.get("__fileGroups");
+        assertEquals(List.of(img1), fileGroups.get("thread[0][media][]"));
+        assertEquals(List.of(img2), fileGroups.get("thread[1][media][]"));
+        assertNull(fileGroups.get("media[]")); // no parent media files
+    }
+
+    @Test
+    void getsPostWithMediaAndThread() {
+        var mockResponse = Map.of(
+                "id", "post-1",
+                "body", "Hello",
+                "status", "media_processing_failed",
+                "created_at", "2025-01-01T00:00:00Z",
+                "platforms", List.of(),
+                "media", List.of(
+                        Map.of("id", "m-1", "status", "processed", "content_type", "image/jpeg", "url", "https://cdn.example.com/img.jpg")
+                ),
+                "thread", List.of(
+                        Map.of("id", "t-1", "body", "Reply", "media", List.of())
+                )
+        );
+        var mock = new MockPostProxyClient(mockResponse, 200, null);
+        var posts = new PostsResource(mock);
+
+        var post = posts.get("post-1");
+        assertEquals("media_processing_failed", post.status().getValue());
+        assertEquals(1, post.media().size());
+        assertEquals("processed", post.media().get(0).status().getValue());
+        assertEquals(1, post.thread().size());
+        assertEquals("Reply", post.thread().get(0).body());
     }
 }

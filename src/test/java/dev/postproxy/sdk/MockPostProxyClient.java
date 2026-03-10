@@ -7,6 +7,7 @@ import dev.postproxy.sdk.exception.*;
 
 import java.nio.file.Path;
 import java.util.*;
+import java.util.List;
 
 public class MockPostProxyClient extends PostProxyClient {
 
@@ -40,14 +41,23 @@ public class MockPostProxyClient extends PostProxyClient {
     }
 
     @Override
+    public <T> T patch(String path, Map<String, String> queryParams, Object body, TypeReference<T> type) {
+        return handle("PATCH", path, queryParams, body, type);
+    }
+
+    @Override
     public <T> T delete(String path, Map<String, String> queryParams, TypeReference<T> type) {
         return handle("DELETE", path, queryParams, null, type);
     }
 
     @Override
     public <T> T postMultipart(String path, Map<String, String> queryParams,
-                                Map<String, Object> fields, List<Path> files, TypeReference<T> type) {
-        return handle("POST", path, queryParams, fields, type);
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type) {
+        Map<String, Object> body = new LinkedHashMap<>(fields);
+        if (fileGroups != null) {
+            body.put("__fileGroups", fileGroups);
+        }
+        return handle("POST", path, queryParams, body, type);
     }
 
     @SuppressWarnings("unchecked")

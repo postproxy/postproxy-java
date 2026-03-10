@@ -9,6 +9,7 @@ public record CreatePostParams(
         List<String> media,
         List<Path> mediaFiles,
         PlatformParams platforms,
+        List<ThreadChildInput> thread,
         String scheduledAt,
         Boolean draft,
         String profileGroupId
@@ -23,6 +24,7 @@ public record CreatePostParams(
         private List<String> media;
         private List<Path> mediaFiles;
         private PlatformParams platforms;
+        private List<ThreadChildInput> thread;
         private String scheduledAt;
         private Boolean draft;
         private String profileGroupId;
@@ -32,6 +34,7 @@ public record CreatePostParams(
         public Builder media(List<String> media) { this.media = media; return this; }
         public Builder mediaFiles(List<Path> mediaFiles) { this.mediaFiles = mediaFiles; return this; }
         public Builder platforms(PlatformParams platforms) { this.platforms = platforms; return this; }
+        public Builder thread(List<ThreadChildInput> thread) { this.thread = thread; return this; }
         public Builder scheduledAt(String scheduledAt) { this.scheduledAt = scheduledAt; return this; }
         public Builder draft(Boolean draft) { this.draft = draft; return this; }
         public Builder profileGroupId(String profileGroupId) { this.profileGroupId = profileGroupId; return this; }
@@ -39,7 +42,7 @@ public record CreatePostParams(
         public CreatePostParams build() {
             if (body == null) throw new IllegalArgumentException("body is required");
             if (profiles == null || profiles.isEmpty()) throw new IllegalArgumentException("profiles is required");
-            return new CreatePostParams(body, profiles, media, mediaFiles, platforms, scheduledAt, draft, profileGroupId);
+            return new CreatePostParams(body, profiles, media, mediaFiles, platforms, thread, scheduledAt, draft, profileGroupId);
         }
     }
 }

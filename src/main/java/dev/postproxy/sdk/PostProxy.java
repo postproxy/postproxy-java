@@ -3,6 +3,7 @@ package dev.postproxy.sdk;
 import dev.postproxy.sdk.resource.PostsResource;
 import dev.postproxy.sdk.resource.ProfileGroupsResource;
 import dev.postproxy.sdk.resource.ProfilesResource;
+import dev.postproxy.sdk.resource.WebhooksResource;
 
 public class PostProxy {
 
@@ -11,12 +12,14 @@ public class PostProxy {
     private final PostsResource posts;
     private final ProfilesResource profiles;
     private final ProfileGroupsResource profileGroups;
+    private final WebhooksResource webhooks;
 
     private PostProxy(String apiKey, String baseUrl, String profileGroupId) {
         PostProxyClient client = new PostProxyClient(apiKey, baseUrl, profileGroupId);
         this.posts = new PostsResource(client);
         this.profiles = new ProfilesResource(client);
         this.profileGroups = new ProfileGroupsResource(client);
+        this.webhooks = new WebhooksResource(client);
     }
 
     public static Builder builder(String apiKey) {
@@ -33,6 +36,10 @@ public class PostProxy {
 
     public ProfileGroupsResource profileGroups() {
         return profileGroups;
+    }
+
+    public WebhooksResource webhooks() {
+        return webhooks;
     }
 
     public static class Builder {
