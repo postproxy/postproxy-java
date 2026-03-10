@@ -189,6 +189,63 @@ for (var child : post.thread()) {
 }
 ```
 
+### Queues
+
+```java
+import dev.postproxy.sdk.param.*;
+import dev.postproxy.sdk.model.*;
+import java.util.List;
+import java.util.Map;
+
+// List all queues
+var queues = client.queues().list();
+
+// Get a queue
+var queue = client.queues().get("queue-id");
+
+// Get next available slot
+var nextSlot = client.queues().nextSlot("queue-id");
+System.out.println(nextSlot.nextSlot());
+
+// Create a queue with timeslots
+var queue = client.queues().create(CreateQueueParams.builder()
+    .name("Morning Posts")
+    .profileGroupId("pg-abc")
+    .description("Weekday morning content")
+    .timezone("America/New_York")
+    .jitter(10)
+    .timeslots(List.of(
+        Map.of("day", 1, "time", "09:00"),
+        Map.of("day", 2, "time", "09:00"),
+        Map.of("day", 3, "time", "09:00")
+    ))
+    .build());
+
+// Update a queue
+var queue = client.queues().update("queue-id", UpdateQueueParams.builder()
+    .jitter(15)
+    .timeslots(List.of(
+        Map.of("day", 6, "time", "10:00"),           // add new timeslot
+        Map.of("id", 1, "_destroy", true)              // remove existing timeslot
+    ))
+    .build());
+
+// Pause/unpause a queue
+client.queues().update("queue-id", UpdateQueueParams.builder()
+    .enabled(false).build());
+
+// Delete a queue
+var result = client.queues().delete("queue-id");
+
+// Add a post to a queue
+var post = client.posts().create(CreatePostParams.builder()
+    .body("This post will be scheduled by the queue")
+    .profiles(List.of("profile-id"))
+    .queueId("queue-id")
+    .queuePriority("high")
+    .build());
+```
+
 ### Webhooks
 
 ```java
@@ -376,7 +433,7 @@ Key types:
 
 | Type | Fields |
 |---|---|
-| `Post` | id, body, status, scheduledAt, createdAt, media, thread, platforms |
+| `Post` | id, body, status, scheduledAt, createdAt, media, thread, platforms, queueId, queuePriority |
 | `Profile` | id, name, status, platform, profileGroupId, expiresAt, postCount |
 | `ProfileGroup` | id, name, profilesCount |
 | `Media` | id, type, url, status |
@@ -391,6 +448,9 @@ Key types:
 | `PostStats` | platforms |
 | `PlatformStats` | profileId, platform, records |
 | `StatsRecord` | stats (Map), recordedAt |
+| `Queue` | id, name, description, timezone, enabled, jitter, profileGroupId, timeslots, postsCount |
+| `Timeslot` | id, day, time |
+| `NextSlotResponse` | nextSlot |
 
 ### Platform parameter types
 
