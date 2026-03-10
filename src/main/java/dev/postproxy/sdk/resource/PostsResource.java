@@ -88,6 +88,8 @@ public class PostsResource {
         if (params.media() != null && !params.media().isEmpty()) body.put("media", params.media());
         if (params.platforms() != null) body.put("platforms", params.platforms());
         if (params.thread() != null && !params.thread().isEmpty()) body.put("thread", params.thread());
+        if (params.queueId() != null) body.put("queue_id", params.queueId());
+        if (params.queuePriority() != null) body.put("queue_priority", params.queuePriority());
 
         return client.post("/api/posts", query, body, new TypeReference<>() {});
     }

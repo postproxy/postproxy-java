@@ -11,5 +11,7 @@ public record Post(
         @JsonProperty("created_at") String createdAt,
         @JsonProperty("media") List<Media> media,
         @JsonProperty("platforms") List<PlatformResult> platforms,
-        @JsonProperty("thread") List<ThreadChild> thread
+        @JsonProperty("thread") List<ThreadChild> thread,
+        @JsonProperty("queue_id") String queueId,
+        @JsonProperty("queue_priority") String queuePriority
 ) {}
