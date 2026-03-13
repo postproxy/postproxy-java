@@ -4,7 +4,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum FacebookFormat {
     POST("post"),
-    STORY("story");
+    STORY("story"),
+    REEL("reel");
 
     private final String value;
 
