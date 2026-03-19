@@ -11,6 +11,7 @@ import dev.postproxy.sdk.param.GetStatsParams;
 import dev.postproxy.sdk.param.ListPostsParams;
 import dev.postproxy.sdk.param.PlatformParams;
 import dev.postproxy.sdk.param.ThreadChildInput;
+import dev.postproxy.sdk.param.UpdatePostParams;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -146,6 +147,70 @@ public class PostsResource {
             }
         } catch (Exception ignored) {
         }
+    }
+
+    public Post update(String id, UpdatePostParams params) {
+        String pgId = params.profileGroupId() != null ? params.profileGroupId() : client.getDefaultProfileGroupId();
+        Map<String, String> query = new LinkedHashMap<>();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        boolean hasParentFiles = params.mediaFiles() != null && !params.mediaFiles().isEmpty();
+        boolean hasThreadFiles = params.thread() != null && params.thread().stream()
+                .anyMatch(t -> t.mediaFiles() != null && !t.mediaFiles().isEmpty());
+        if (hasParentFiles || hasThreadFiles) {
+            return updateMultipart(id, params, query);
+        }
+        return updateJson(id, params, query);
+    }
+
+    private Post updateJson(String id, UpdatePostParams params, Map<String, String> query) {
+        Map<String, Object> postMap = new LinkedHashMap<>();
+        if (params.body() != null) postMap.put("body", params.body());
+        if (params.scheduledAt() != null) postMap.put("scheduled_at", params.scheduledAt());
+        if (params.draft() != null) postMap.put("draft", params.draft());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (!postMap.isEmpty()) body.put("post", postMap);
+        if (params.profiles() != null) body.put("profiles", params.profiles());
+        if (params.media() != null) body.put("media", params.media());
+        if (params.platforms() != null) body.put("platforms", params.platforms());
+        if (params.thread() != null && !params.thread().isEmpty()) body.put("thread", params.thread());
+        if (params.queueId() != null) body.put("queue_id", params.queueId());
+        if (params.queuePriority() != null) body.put("queue_priority", params.queuePriority());
+
+        return client.patch("/api/posts/" + id, query, body, new TypeReference<>() {});
+    }
+
+    private Post updateMultipart(String id, UpdatePostParams params, Map<String, String> query) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        if (params.body() != null) fields.put("post[body]", params.body());
+        if (params.scheduledAt() != null) fields.put("post[scheduled_at]", params.scheduledAt());
+        if (params.draft() != null) fields.put("post[draft]", params.draft().toString());
+        if (params.profiles() != null) fields.put("profiles[]", params.profiles());
+
+        if (params.platforms() != null) {
+            addPlatformFields(fields, params.platforms());
+        }
+
+        Map<String, List<Path>> fileGroups = new LinkedHashMap<>();
+        if (params.mediaFiles() != null && !params.mediaFiles().isEmpty()) {
+            fileGroups.put("media[]", params.mediaFiles());
+        }
+
+        if (params.thread() != null) {
+            for (int i = 0; i < params.thread().size(); i++) {
+                ThreadChildInput child = params.thread().get(i);
+                fields.put("thread[" + i + "][body]", child.body());
+                if (child.media() != null && !child.media().isEmpty()) {
+                    fields.put("thread[" + i + "][media][]", child.media());
+                }
+                if (child.mediaFiles() != null && !child.mediaFiles().isEmpty()) {
+                    fileGroups.put("thread[" + i + "][media][]", child.mediaFiles());
+                }
+            }
+        }
+
+        return client.patchMultipart("/api/posts/" + id, query, fields, fileGroups, new TypeReference<>() {});
     }
 
     public StatsResponse stats(GetStatsParams params) {

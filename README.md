@@ -162,6 +162,38 @@ for (var child : post.thread()) {
     System.out.println(child.id() + ": " + child.body());
 }
 
+// Update a post (only drafts or scheduled posts)
+var post = client.posts().update("post-id", UpdatePostParams.builder()
+    .body("Updated content!")
+    .build());
+
+// Update platform params only
+var post = client.posts().update("post-id", UpdatePostParams.builder()
+    .platforms(PlatformParams.builder()
+        .youtube(YouTubeParams.builder().privacyStatus("unlisted").build())
+        .build())
+    .build());
+
+// Replace profiles and media
+var post = client.posts().update("post-id", UpdatePostParams.builder()
+    .profiles(List.of("twitter", "threads"))
+    .media(List.of("https://example.com/new-image.jpg"))
+    .build());
+
+// Replace thread children
+var post = client.posts().update("post-id", UpdatePostParams.builder()
+    .thread(List.of(
+        ThreadChildInput.builder().body("Updated first reply").build(),
+        ThreadChildInput.builder().body("Updated second reply")
+            .media(List.of("https://example.com/img.jpg")).build()
+    ))
+    .build());
+
+// Remove all media
+var post = client.posts().update("post-id", UpdatePostParams.builder()
+    .media(List.of())
+    .build());
+
 // Publish a draft
 var post = client.posts().publishDraft("post-id");
 
