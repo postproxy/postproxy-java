@@ -81,6 +81,30 @@ public class PostProxyClient {
         }
     }
 
+    public <T> T patchMultipart(String path, Map<String, String> queryParams,
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type) {
+        try {
+            String boundary = "----PostProxy" + UUID.randomUUID().toString().replace("-", "");
+            byte[] body = buildMultipartBody(boundary, fields, fileGroups);
+
+            URI uri = buildUri(path, queryParams);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .method("PATCH", HttpRequest.BodyPublishers.ofByteArray(body))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            return handleResponse(response, type);
+        } catch (PostProxyException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PostProxyException("Request failed: " + e.getMessage(), 0, null);
+        }
+    }
+
     private <T> T request(String method, String path, Map<String, String> queryParams,
                            Object body, TypeReference<T> type) {
         try {

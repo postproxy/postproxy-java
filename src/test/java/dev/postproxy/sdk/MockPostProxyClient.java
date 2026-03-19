@@ -60,6 +60,16 @@ public class MockPostProxyClient extends PostProxyClient {
         return handle("POST", path, queryParams, body, type);
     }
 
+    @Override
+    public <T> T patchMultipart(String path, Map<String, String> queryParams,
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type) {
+        Map<String, Object> body = new LinkedHashMap<>(fields);
+        if (fileGroups != null) {
+            body.put("__fileGroups", fileGroups);
+        }
+        return handle("PATCH", path, queryParams, body, type);
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T handle(String method, String path, Map<String, String> queryParams,
                           Object body, TypeReference<T> type) {
