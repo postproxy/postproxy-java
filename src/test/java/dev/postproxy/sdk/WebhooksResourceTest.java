@@ -122,7 +122,7 @@ class WebhooksResourceTest {
 
         var result = webhooks.deliveries("wh-1", 1, 10);
         assertEquals(1, result.data().size());
-        assertEquals(1, result.data().get(0).id());
+        assertEquals("del-1", result.data().get(0).id());
         assertEquals("post.published", result.data().get(0).eventType());
         assertTrue(result.data().get(0).success());
 
