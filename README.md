@@ -328,6 +328,45 @@ boolean isValid = WebhookSignature.verify(
 );
 ```
 
+### Comments
+
+```java
+import dev.postproxy.sdk.model.Comment;
+
+// List comments on a post (paginated)
+var comments = client.comments().list("post-id", "profile-id");
+for (var comment : comments.data()) {
+    System.out.println(comment.authorUsername() + ": " + comment.body());
+    for (var reply : comment.replies()) {
+        System.out.println("  " + reply.authorUsername() + ": " + reply.body());
+    }
+}
+
+// List with pagination
+var comments = client.comments().list("post-id", "profile-id", 2, 10);
+
+// Get a single comment
+var comment = client.comments().get("post-id", "comment-id", "profile-id");
+
+// Create a comment
+var comment = client.comments().create("post-id", "profile-id", "Great post!");
+
+// Reply to a comment
+var reply = client.comments().create("post-id", "profile-id", "Thanks!", "comment-id");
+
+// Delete a comment
+var result = client.comments().delete("post-id", "comment-id", "profile-id");
+System.out.println(result.accepted()); // true
+
+// Hide / unhide a comment
+client.comments().hide("post-id", "comment-id", "profile-id");
+client.comments().unhide("post-id", "comment-id", "profile-id");
+
+// Like / unlike a comment
+client.comments().like("post-id", "comment-id", "profile-id");
+client.comments().unlike("post-id", "comment-id", "profile-id");
+```
+
 ### Post Stats
 
 Retrieve stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time.
@@ -475,6 +514,8 @@ Key types:
 | `WebhookDelivery` | id, eventId, eventType, responseStatus, attemptNumber, success, attemptedAt, createdAt |
 | `PlatformResult` | platform, status, params, error, attemptedAt, insights |
 | `ListResponse<T>` | data |
+| `Comment` | id, externalId, body, status, authorUsername, authorAvatarUrl, authorExternalId, parentExternalId, likeCount, isHidden, permalink, platformData, postedAt, createdAt, replies |
+| `AcceptedResponse` | accepted |
 | `PaginatedResponse<T>` | data, total, page, perPage |
 | `StatsResponse` | data (Map&lt;String, PostStats&gt;) |
 | `PostStats` | platforms |

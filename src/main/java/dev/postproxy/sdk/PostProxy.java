@@ -5,6 +5,7 @@ import dev.postproxy.sdk.resource.ProfileGroupsResource;
 import dev.postproxy.sdk.resource.ProfilesResource;
 import dev.postproxy.sdk.resource.WebhooksResource;
 import dev.postproxy.sdk.resource.QueuesResource;
+import dev.postproxy.sdk.resource.CommentsResource;
 
 public class PostProxy {
 
@@ -15,6 +16,7 @@ public class PostProxy {
     private final ProfileGroupsResource profileGroups;
     private final WebhooksResource webhooks;
     private final QueuesResource queues;
+    private final CommentsResource comments;
 
     private PostProxy(String apiKey, String baseUrl, String profileGroupId) {
         PostProxyClient client = new PostProxyClient(apiKey, baseUrl, profileGroupId);
@@ -23,6 +25,7 @@ public class PostProxy {
         this.profileGroups = new ProfileGroupsResource(client);
         this.webhooks = new WebhooksResource(client);
         this.queues = new QueuesResource(client);
+        this.comments = new CommentsResource(client);
     }
 
     public static Builder builder(String apiKey) {
@@ -47,6 +50,10 @@ public class PostProxy {
 
     public QueuesResource queues() {
         return queues;
+    }
+
+    public CommentsResource comments() {
+        return comments;
     }
 
     public static class Builder {
