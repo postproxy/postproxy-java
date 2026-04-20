@@ -533,7 +533,7 @@ Key types:
 | `InstagramParams` | format (`post`, `reel`, `story`), firstComment, collaborators, coverUrl, audioName, trialStrategy, thumbOffset |
 | `TikTokParams` | format (`video`, `image`), privacyStatus, photoCoverIndex, autoAddMusic, madeWithAi, disableComment, disableDuet, disableStitch, brandContentToggle, brandOrganicToggle |
 | `LinkedInParams` | format (`post`), organizationId |
-| `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl |
+| `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl, madeForKids, tags, categoryId, containsSyntheticMedia |
 | `PinterestParams` | format (`pin`), title, boardId, destinationLink, coverUrl, thumbOffset |
 | `ThreadsParams` | format (`post`) |
 | `TwitterParams` | format (`post`) |
