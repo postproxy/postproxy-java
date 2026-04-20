@@ -100,6 +100,8 @@ public class PostsResource {
         fields.put("post[body]", params.body());
         if (params.scheduledAt() != null) fields.put("post[scheduled_at]", params.scheduledAt());
         if (params.draft() != null) fields.put("post[draft]", params.draft().toString());
+        if (params.queueId() != null) fields.put("queue_id", params.queueId());
+        if (params.queuePriority() != null) fields.put("queue_priority", params.queuePriority());
         fields.put("profiles[]", params.profiles());
 
         if (params.platforms() != null) {
@@ -186,6 +188,8 @@ public class PostsResource {
         if (params.body() != null) fields.put("post[body]", params.body());
         if (params.scheduledAt() != null) fields.put("post[scheduled_at]", params.scheduledAt());
         if (params.draft() != null) fields.put("post[draft]", params.draft().toString());
+        if (params.queueId() != null) fields.put("queue_id", params.queueId());
+        if (params.queuePriority() != null) fields.put("queue_priority", params.queuePriority());
         if (params.profiles() != null) fields.put("profiles[]", params.profiles());
 
         if (params.platforms() != null) {
