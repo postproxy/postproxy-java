@@ -200,6 +200,21 @@ var post = client.posts().publishDraft("post-id");
 // Delete a post
 var result = client.posts().delete("post-id");
 System.out.println(result.deleted()); // true
+
+// Delete a post and also remove it from social platforms
+var result2 = client.posts().delete("post-id", true, null);
+
+// Delete from platforms only (keeps DB record). Defaults to all platforms.
+var r1 = client.posts().deleteOnPlatform("post-id");
+// Target a single network
+var r2 = client.posts().deleteOnPlatform(
+        "post-id", DeleteOnPlatformParams.builder().network("twitter").build());
+// Target a specific profile
+var r3 = client.posts().deleteOnPlatform(
+        "post-id", DeleteOnPlatformParams.builder().profileId("prof-abc").build());
+// Target a specific post profile (covers entire thread for that profile)
+var r4 = client.posts().deleteOnPlatform(
+        "post-id", DeleteOnPlatformParams.builder().postProfileId("pp-abc").build());
 ```
 
 ### Threads
