@@ -2,6 +2,7 @@ package dev.postproxy.sdk;
 
 import dev.postproxy.sdk.model.Platform;
 import dev.postproxy.sdk.param.CreatePostParams;
+import dev.postproxy.sdk.param.DeleteOnPlatformParams;
 import dev.postproxy.sdk.param.GetStatsParams;
 import dev.postproxy.sdk.param.InstagramParams;
 import dev.postproxy.sdk.param.ListPostsParams;
@@ -175,6 +176,67 @@ class PostsResourceTest {
         var result = posts.delete("post-1");
         assertTrue(result.deleted());
         assertEquals("DELETE", mock.getRequests().get(0).method());
+    }
+
+    @Test
+    void deletesPostWithDeleteOnPlatform() {
+        var mock = new MockPostProxyClient(Map.of("deleted", true), 200, null);
+        var posts = new PostsResource(mock);
+        var result = posts.delete("post-1", true, null);
+        assertTrue(result.deleted());
+        assertTrue(mock.getRequests().get(0).url().contains("delete_on_platform=true"));
+    }
+
+    @Test
+    void deletesOnPlatformAllPlatforms() {
+        var mock = new MockPostProxyClient(
+                Map.of(
+                        "success", true,
+                        "deleting", List.of(Map.of("post_profile_id", "pp-1", "platform", "twitter"))
+                ),
+                200,
+                null
+        );
+        var posts = new PostsResource(mock);
+        var result = posts.deleteOnPlatform("post-1");
+        assertTrue(result.success());
+        assertEquals(1, result.deleting().size());
+        assertEquals(Platform.TWITTER, result.deleting().get(0).platform());
+        assertEquals("pp-1", result.deleting().get(0).postProfileId());
+        var req = mock.getRequests().get(0);
+        assertEquals("POST", req.method());
+        assertTrue(req.url().contains("/posts/post-1/delete_on_platform"));
+        assertNull(req.body());
+    }
+
+    @Test
+    void deletesOnPlatformByNetwork() {
+        var mock = new MockPostProxyClient(Map.of("success", true, "deleting", List.of()), 200, null);
+        var posts = new PostsResource(mock);
+        posts.deleteOnPlatform("post-1", DeleteOnPlatformParams.builder().network("twitter").build());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) mock.getRequests().get(0).body();
+        assertEquals(Map.of("network", "twitter"), body);
+    }
+
+    @Test
+    void deletesOnPlatformByProfileId() {
+        var mock = new MockPostProxyClient(Map.of("success", true, "deleting", List.of()), 200, null);
+        var posts = new PostsResource(mock);
+        posts.deleteOnPlatform("post-1", DeleteOnPlatformParams.builder().profileId("prof-1").build());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) mock.getRequests().get(0).body();
+        assertEquals(Map.of("profile_id", "prof-1"), body);
+    }
+
+    @Test
+    void deletesOnPlatformByPostProfileId() {
+        var mock = new MockPostProxyClient(Map.of("success", true, "deleting", List.of()), 200, null);
+        var posts = new PostsResource(mock);
+        posts.deleteOnPlatform("post-1", DeleteOnPlatformParams.builder().postProfileId("pp-1").build());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) mock.getRequests().get(0).body();
+        assertEquals(Map.of("post_profile_id", "pp-1"), body);
     }
 
     private static final Map<String, Object> MOCK_STATS = Map.of(

@@ -2,11 +2,13 @@ package dev.postproxy.sdk.resource;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import dev.postproxy.sdk.PostProxyClient;
+import dev.postproxy.sdk.model.DeleteOnPlatformResponse;
 import dev.postproxy.sdk.model.DeleteResponse;
 import dev.postproxy.sdk.model.PaginatedResponse;
 import dev.postproxy.sdk.model.Post;
 import dev.postproxy.sdk.model.StatsResponse;
 import dev.postproxy.sdk.param.CreatePostParams;
+import dev.postproxy.sdk.param.DeleteOnPlatformParams;
 import dev.postproxy.sdk.param.GetStatsParams;
 import dev.postproxy.sdk.param.ListPostsParams;
 import dev.postproxy.sdk.param.PlatformParams;
@@ -100,6 +102,8 @@ public class PostsResource {
         fields.put("post[body]", params.body());
         if (params.scheduledAt() != null) fields.put("post[scheduled_at]", params.scheduledAt());
         if (params.draft() != null) fields.put("post[draft]", params.draft().toString());
+        if (params.queueId() != null) fields.put("queue_id", params.queueId());
+        if (params.queuePriority() != null) fields.put("queue_priority", params.queuePriority());
         fields.put("profiles[]", params.profiles());
 
         if (params.platforms() != null) {
@@ -186,6 +190,8 @@ public class PostsResource {
         if (params.body() != null) fields.put("post[body]", params.body());
         if (params.scheduledAt() != null) fields.put("post[scheduled_at]", params.scheduledAt());
         if (params.draft() != null) fields.put("post[draft]", params.draft().toString());
+        if (params.queueId() != null) fields.put("queue_id", params.queueId());
+        if (params.queuePriority() != null) fields.put("queue_priority", params.queuePriority());
         if (params.profiles() != null) fields.put("profiles[]", params.profiles());
 
         if (params.platforms() != null) {
@@ -238,14 +244,45 @@ public class PostsResource {
     }
 
     public DeleteResponse delete(String id) {
-        return delete(id, null);
+        return delete(id, null, null);
     }
 
     public DeleteResponse delete(String id, String profileGroupId) {
+        return delete(id, null, profileGroupId);
+    }
+
+    public DeleteResponse delete(String id, Boolean deleteOnPlatform, String profileGroupId) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
+        if (deleteOnPlatform != null) query.put("delete_on_platform", deleteOnPlatform.toString());
 
         return client.delete("/api/posts/" + id, query, new TypeReference<>() {});
+    }
+
+    public DeleteOnPlatformResponse deleteOnPlatform(String id) {
+        return deleteOnPlatform(id, null);
+    }
+
+    public DeleteOnPlatformResponse deleteOnPlatform(String id, DeleteOnPlatformParams params) {
+        Map<String, String> query = new LinkedHashMap<>();
+        String pgId = params != null && params.profileGroupId() != null
+                ? params.profileGroupId()
+                : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (params != null) {
+            if (params.postProfileId() != null) body.put("post_profile_id", params.postProfileId());
+            if (params.profileId() != null) body.put("profile_id", params.profileId());
+            if (params.network() != null) body.put("network", params.network());
+        }
+
+        return client.post(
+                "/api/posts/" + id + "/delete_on_platform",
+                query,
+                body.isEmpty() ? null : body,
+                new TypeReference<>() {}
+        );
     }
 }

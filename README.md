@@ -200,6 +200,21 @@ var post = client.posts().publishDraft("post-id");
 // Delete a post
 var result = client.posts().delete("post-id");
 System.out.println(result.deleted()); // true
+
+// Delete a post and also remove it from social platforms
+var result2 = client.posts().delete("post-id", true, null);
+
+// Delete from platforms only (keeps DB record). Defaults to all platforms.
+var r1 = client.posts().deleteOnPlatform("post-id");
+// Target a single network
+var r2 = client.posts().deleteOnPlatform(
+        "post-id", DeleteOnPlatformParams.builder().network("twitter").build());
+// Target a specific profile
+var r3 = client.posts().deleteOnPlatform(
+        "post-id", DeleteOnPlatformParams.builder().profileId("prof-abc").build());
+// Target a specific post profile (covers entire thread for that profile)
+var r4 = client.posts().deleteOnPlatform(
+        "post-id", DeleteOnPlatformParams.builder().postProfileId("pp-abc").build());
 ```
 
 ### Threads
@@ -533,7 +548,7 @@ Key types:
 | `InstagramParams` | format (`post`, `reel`, `story`), firstComment, collaborators, coverUrl, audioName, trialStrategy, thumbOffset |
 | `TikTokParams` | format (`video`, `image`), privacyStatus, photoCoverIndex, autoAddMusic, madeWithAi, disableComment, disableDuet, disableStitch, brandContentToggle, brandOrganicToggle |
 | `LinkedInParams` | format (`post`), organizationId |
-| `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl |
+| `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl, madeForKids, tags, categoryId, containsSyntheticMedia |
 | `PinterestParams` | format (`pin`), title, boardId, destinationLink, coverUrl, thumbOffset |
 | `ThreadsParams` | format (`post`) |
 | `TwitterParams` | format (`post`) |
