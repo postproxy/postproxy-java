@@ -51,6 +51,29 @@ public class ProfilesResource {
         return client.get("/api/profiles/" + id + "/placements", query, new TypeReference<>() {});
     }
 
+    /**
+     * Fetch the profile stats timeseries. {@code placementId} is required for
+     * facebook, linkedin, and telegram profiles.
+     */
+    public ProfileStatsResponse getProfileStats(String id, String placementId) {
+        return getProfileStats(id, placementId, null, null, null);
+    }
+
+    public ProfileStatsResponse getProfileStats(String id, String placementId, String from, String to) {
+        return getProfileStats(id, placementId, from, to, null);
+    }
+
+    public ProfileStatsResponse getProfileStats(String id, String placementId, String from, String to, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        if (placementId != null) query.put("placement_id", placementId);
+        if (from != null) query.put("from", from);
+        if (to != null) query.put("to", to);
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        return client.get("/api/profiles/" + id + "/stats", query, new TypeReference<>() {});
+    }
+
     public SuccessResponse delete(String id) {
         return delete(id, null);
     }

@@ -449,6 +449,17 @@ for (var p : placements.data()) {
 // Delete a profile
 var result = client.profiles().delete("profile-id");
 System.out.println(result.success()); // true
+
+// Profile stats timeseries — placementId required for facebook, linkedin, telegram
+var stats = client.profiles().getProfileStats("prof_li_001", "108520199", "2026-04-01T00:00:00Z", null);
+for (var r : stats.data().records()) {
+    System.out.println(r.recordedAt() + ": " + r.stats().get("followerCount"));
+}
+
+// Bluesky — no placements
+var bsky = client.profiles().getProfileStats("prof_bsky_001", null);
+var last = bsky.data().records().get(bsky.data().records().size() - 1);
+System.out.println(last.stats().get("followersCount"));
 ```
 
 ### Profile Groups
@@ -470,13 +481,30 @@ var group = client.profileGroups().create("My New Group");
 var result = client.profileGroups().delete("pg-id");
 System.out.println(result.deleted()); // true
 
-// Initialize a social platform connection
+// Initialize a social platform OAuth connection
 var conn = client.profileGroups().initializeConnection(
     "pg-id",
     Platform.INSTAGRAM,
     "https://yourapp.com/callback"
 );
 System.out.println(conn.url()); // Redirect the user to this URL
+
+// BlueSky — app password (synchronous, no OAuth)
+var bsky = client.profileGroups().connectBluesky(
+    "pg-id", "yourname.bsky.social", "xxxx-xxxx-xxxx-xxxx"
+);
+System.out.println(bsky.profile().id());
+
+// Telegram — bring-your-own-bot. Channels populate asynchronously; poll
+// placements until non-empty.
+var tg = client.profileGroups().connectTelegram(
+    "pg-id", "123456789:ABCdef-GhIJklMnOpQrStUvWxYz"
+);
+System.out.println(tg.nextStep());
+
+while (client.profiles().placements(tg.profile().id()).data().isEmpty()) {
+    Thread.sleep(3000);
+}
 ```
 
 ## Error handling
@@ -552,8 +580,12 @@ Key types:
 | `PinterestParams` | format (`pin`), title, boardId, destinationLink, coverUrl, thumbOffset |
 | `ThreadsParams` | format (`post`) |
 | `TwitterParams` | format (`post`) |
+| `BlueskyParams` | format (`post`) |
+| `TelegramParams` | format (`post`), chatId (required), parseMode (`HTML`, `MarkdownV2`), disableLinkPreview, disableNotification |
 
-Wrap them in `PlatformParams` when passing to `posts().create()`.
+Wrap them in `PlatformParams` when passing to `posts().create()`. Telegram requires a `chatId` per post — list channels with `client.profiles().placements(profileId)`.
+
+Supported platforms: facebook, instagram, tiktok, linkedin, youtube, twitter, threads, pinterest, bluesky, telegram.
 
 ## Development
 

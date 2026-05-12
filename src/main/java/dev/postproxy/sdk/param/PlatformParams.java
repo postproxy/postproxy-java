@@ -12,7 +12,9 @@ public record PlatformParams(
         @JsonProperty("youtube") YouTubeParams youtube,
         @JsonProperty("pinterest") PinterestParams pinterest,
         @JsonProperty("threads") ThreadsParams threads,
-        @JsonProperty("twitter") TwitterParams twitter
+        @JsonProperty("twitter") TwitterParams twitter,
+        @JsonProperty("bluesky") BlueskyParams bluesky,
+        @JsonProperty("telegram") TelegramParams telegram
 ) {
     public static Builder builder() {
         return new Builder();
@@ -27,6 +29,8 @@ public record PlatformParams(
         private PinterestParams pinterest;
         private ThreadsParams threads;
         private TwitterParams twitter;
+        private BlueskyParams bluesky;
+        private TelegramParams telegram;
 
         public Builder facebook(FacebookParams facebook) { this.facebook = facebook; return this; }
         public Builder instagram(InstagramParams instagram) { this.instagram = instagram; return this; }
@@ -36,9 +40,11 @@ public record PlatformParams(
         public Builder pinterest(PinterestParams pinterest) { this.pinterest = pinterest; return this; }
         public Builder threads(ThreadsParams threads) { this.threads = threads; return this; }
         public Builder twitter(TwitterParams twitter) { this.twitter = twitter; return this; }
+        public Builder bluesky(BlueskyParams bluesky) { this.bluesky = bluesky; return this; }
+        public Builder telegram(TelegramParams telegram) { this.telegram = telegram; return this; }
 
         public PlatformParams build() {
-            return new PlatformParams(facebook, instagram, tiktok, linkedin, youtube, pinterest, threads, twitter);
+            return new PlatformParams(facebook, instagram, tiktok, linkedin, youtube, pinterest, threads, twitter, bluesky, telegram);
         }
     }
 }

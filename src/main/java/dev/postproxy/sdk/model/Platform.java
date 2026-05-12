@@ -10,7 +10,9 @@ public enum Platform {
     YOUTUBE("youtube"),
     TWITTER("twitter"),
     THREADS("threads"),
-    PINTEREST("pinterest");
+    PINTEREST("pinterest"),
+    BLUESKY("bluesky"),
+    TELEGRAM("telegram");
 
     private final String value;
 

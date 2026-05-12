@@ -24,6 +24,9 @@ public class PostProxyClient {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
 
+    private static final String USER_AGENT = "postproxy-java/" + Version.VERSION
+            + " (jvm/" + System.getProperty("java.version") + ")";
+
     PostProxyClient(String apiKey, String baseUrl, String defaultProfileGroupId) {
         this.apiKey = apiKey;
         this.baseUrl = baseUrl;
@@ -31,6 +34,10 @@ public class PostProxyClient {
         this.httpClient = HttpClient.newHttpClient();
         this.objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
+
+    public String getUserAgent() {
+        return USER_AGENT;
     }
 
     public ObjectMapper getObjectMapper() {
@@ -67,6 +74,7 @@ public class PostProxyClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(uri)
                     .header("Authorization", "Bearer " + apiKey)
+                    .header("User-Agent", USER_AGENT)
                     .header("Accept", "application/json")
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body))
@@ -91,6 +99,7 @@ public class PostProxyClient {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(uri)
                     .header("Authorization", "Bearer " + apiKey)
+                    .header("User-Agent", USER_AGENT)
                     .header("Accept", "application/json")
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .method("PATCH", HttpRequest.BodyPublishers.ofByteArray(body))
@@ -112,6 +121,7 @@ public class PostProxyClient {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(uri)
                     .header("Authorization", "Bearer " + apiKey)
+                    .header("User-Agent", USER_AGENT)
                     .header("Accept", "application/json");
 
             if (body != null) {
