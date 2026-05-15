@@ -382,6 +382,33 @@ client.comments().like("post-id", "comment-id", "profile-id");
 client.comments().unlike("post-id", "comment-id", "profile-id");
 ```
 
+### Profile comments (Google Business reviews)
+
+Profile-level comments expose Google Business reviews and replies. Reviews are user-generated — the SDK lets you list/get them and reply to or delete your own replies. Reviews sync twice daily.
+
+```java
+// List reviews for a profile (paginated)
+var reviews = client.profileComments().list("profile-id");
+for (var review : reviews.data()) {
+    System.out.println(review.authorUsername() + ": " + review.body());
+    for (var reply : review.replies()) {
+        System.out.println("  reply: " + reply.body());
+    }
+}
+
+// Filter by placement (location)
+var reviews = client.profileComments().list("profile-id", "accounts/123/locations/456", null, null);
+
+// Get a single review
+var review = client.profileComments().get("profile-id", "review-id");
+
+// Reply to a review (parentId is the review id)
+var reply = client.profileComments().create("profile-id", "review-id", "Thanks for visiting!");
+
+// Delete your reply
+client.profileComments().delete("profile-id", "reply-id");
+```
+
 ### Post Stats
 
 Retrieve stats snapshots for one or more posts. Returns all matching snapshots so you can see trends over time.
@@ -585,7 +612,24 @@ Key types:
 
 Wrap them in `PlatformParams` when passing to `posts().create()`. Telegram requires a `chatId` per post — list channels with `client.profiles().placements(profileId)`.
 
-Supported platforms: facebook, instagram, tiktok, linkedin, youtube, twitter, threads, pinterest, bluesky, telegram.
+Supported platforms: facebook, instagram, tiktok, linkedin, youtube, twitter, threads, pinterest, bluesky, telegram, google_business.
+
+#### Google Business
+
+Google Business posts use the `googleBusiness` builder method on `PlatformParams`, taking a plain `Map<String, Object>`. The `location_id` is the location resource path returned by `client.profiles().placements()`. Supported formats: `standard`, `event`, `offer`. CTA actions: `LEARN_MORE`, `BOOK`, `ORDER`, `SHOP`, `SIGN_UP`, `CALL`. Media is limited to one image (≤5 MB).
+
+```java
+import java.util.Map;
+
+var params = PlatformParams.builder()
+    .googleBusiness(Map.of(
+        "format", "standard",
+        "location_id", "accounts/123/locations/456",
+        "cta_action_type", "LEARN_MORE",
+        "cta_url", "https://example.com"
+    ))
+    .build();
+```
 
 ## Development
 

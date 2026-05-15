@@ -2,6 +2,7 @@ package dev.postproxy.sdk.param;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PlatformParams(
@@ -14,7 +15,8 @@ public record PlatformParams(
         @JsonProperty("threads") ThreadsParams threads,
         @JsonProperty("twitter") TwitterParams twitter,
         @JsonProperty("bluesky") BlueskyParams bluesky,
-        @JsonProperty("telegram") TelegramParams telegram
+        @JsonProperty("telegram") TelegramParams telegram,
+        @JsonProperty("google_business") Map<String, Object> googleBusiness
 ) {
     public static Builder builder() {
         return new Builder();
@@ -31,6 +33,7 @@ public record PlatformParams(
         private TwitterParams twitter;
         private BlueskyParams bluesky;
         private TelegramParams telegram;
+        private Map<String, Object> googleBusiness;
 
         public Builder facebook(FacebookParams facebook) { this.facebook = facebook; return this; }
         public Builder instagram(InstagramParams instagram) { this.instagram = instagram; return this; }
@@ -42,9 +45,10 @@ public record PlatformParams(
         public Builder twitter(TwitterParams twitter) { this.twitter = twitter; return this; }
         public Builder bluesky(BlueskyParams bluesky) { this.bluesky = bluesky; return this; }
         public Builder telegram(TelegramParams telegram) { this.telegram = telegram; return this; }
+        public Builder googleBusiness(Map<String, Object> googleBusiness) { this.googleBusiness = googleBusiness; return this; }
 
         public PlatformParams build() {
-            return new PlatformParams(facebook, instagram, tiktok, linkedin, youtube, pinterest, threads, twitter, bluesky, telegram);
+            return new PlatformParams(facebook, instagram, tiktok, linkedin, youtube, pinterest, threads, twitter, bluesky, telegram, googleBusiness);
         }
     }
 }
