@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import dev.postproxy.sdk.PostProxyClient;
 import dev.postproxy.sdk.model.AcceptedResponse;
 import dev.postproxy.sdk.model.Comment;
+import dev.postproxy.sdk.model.Message;
 import dev.postproxy.sdk.model.PaginatedResponse;
 
 import java.util.LinkedHashMap;
@@ -81,5 +82,16 @@ public class CommentsResource {
 
         String path = "/api/posts/" + postId + "/comments/" + commentId + "/" + action;
         return client.post(path, query, null, new TypeReference<>() {});
+    }
+
+    public Message privateReply(String postId, String commentId, String profileId, String text) {
+        Map<String, String> query = new LinkedHashMap<>();
+        query.put("profile_id", profileId);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("text", text);
+
+        String path = "/api/posts/" + postId + "/comments/" + commentId + "/private_reply";
+        return client.post(path, query, body, new TypeReference<>() {});
     }
 }

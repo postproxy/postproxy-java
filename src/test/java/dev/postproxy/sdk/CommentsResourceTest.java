@@ -182,4 +182,61 @@ class CommentsResourceTest {
         assertTrue(result.accepted());
         assertTrue(mock.getRequests().get(0).url().contains("/comments/cmt_abc123/unlike"));
     }
+
+    @Test
+    void parsesAttachmentsAndMetadata() {
+        var comment = Map.ofEntries(
+                Map.entry("id", "cmt_media"),
+                Map.entry("body", "look at this"),
+                Map.entry("status", "synced"),
+                Map.entry("like_count", 0),
+                Map.entry("is_hidden", false),
+                Map.entry("metadata", Map.of("is_verified_user", true, "follower_count", 100)),
+                Map.entry("attachments", List.of(Map.of(
+                        "id", "att_1", "type", "image",
+                        "url", "https://storage.postproxy.dev/x", "status", "processed",
+                        "external_id", "529233764205652"))),
+                Map.entry("created_at", "2026-03-25T10:01:00Z"),
+                Map.entry("replies", List.of())
+        );
+        var mock = new MockPostProxyClient(comment, 200, null);
+        var comments = new CommentsResource(mock);
+
+        var result = comments.get("post1", "cmt_media", "prof1");
+        assertEquals(true, result.metadata().get("is_verified_user"));
+        assertEquals(1, result.attachments().size());
+        assertEquals("image", result.attachments().get(0).type());
+        assertEquals("att_1", result.attachments().get(0).id());
+    }
+
+    @Test
+    void privateReplyReturnsMessage() {
+        var message = Map.ofEntries(
+                Map.entry("id", "msg_333"),
+                Map.entry("chat_id", "chat_xyz789"),
+                Map.entry("direction", "outbound"),
+                Map.entry("body", "DM-ing you the details."),
+                Map.entry("status", "pending"),
+                Map.entry("external_comment_id", "17858893269123456"),
+                Map.entry("reactions", List.of()),
+                Map.entry("attachments", List.of()),
+                Map.entry("is_unsupported", false),
+                Map.entry("created_at", "2026-05-31T15:35:00Z")
+        );
+        var mock = new MockPostProxyClient(message, 200, null);
+        var comments = new CommentsResource(mock);
+
+        var result = comments.privateReply("post1", "cmt_abc123", "prof1", "DM-ing you the details.");
+        assertEquals("msg_333", result.id());
+        assertEquals("chat_xyz789", result.chatId());
+        assertEquals("17858893269123456", result.externalCommentId());
+
+        var req = mock.getRequests().get(0);
+        assertEquals("POST", req.method());
+        assertTrue(req.url().contains("/posts/post1/comments/cmt_abc123/private_reply"));
+        assertTrue(req.url().contains("profile_id=prof1"));
+        @SuppressWarnings("unchecked")
+        var body = (Map<String, Object>) req.body();
+        assertEquals("DM-ing you the details.", body.get("text"));
+    }
 }

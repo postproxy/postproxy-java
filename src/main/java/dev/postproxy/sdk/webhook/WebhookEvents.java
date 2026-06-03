@@ -58,6 +58,18 @@ public final class WebhookEvents {
         return convert(event.data(), CommentCreatedData.class);
     }
 
+    public static ProfileCommentCreatedData asProfileCommentCreated(WebhookEvent event) {
+        return convert(event.data(), ProfileCommentCreatedData.class);
+    }
+
+    public static MessageEventData asMessageEvent(WebhookEvent event) {
+        return convert(event.data(), MessageEventData.class);
+    }
+
+    public static ReactionEventData asReactionEvent(WebhookEvent event) {
+        return convert(event.data(), ReactionEventData.class);
+    }
+
     private static <T> T convert(JsonNode data, Class<T> klass) {
         if (data == null) return null;
         try {

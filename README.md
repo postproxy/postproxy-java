@@ -343,6 +343,59 @@ boolean isValid = WebhookSignature.verify(
 );
 ```
 
+#### Parsing events and typed payloads
+
+`WebhookEvents.parse(body)` validates the envelope and returns a `WebhookEvent`
+(whose `data` is a `JsonNode`). Decode `data` into a typed payload with one of the
+`as*` helpers based on `event.type()`:
+
+```java
+import dev.postproxy.sdk.webhook.WebhookEvent;
+import dev.postproxy.sdk.webhook.WebhookEventType;
+import dev.postproxy.sdk.webhook.WebhookEvents;
+
+WebhookEvent event = WebhookEvents.parse(requestBody);
+
+switch (event.type()) {
+    case COMMENT_CREATED -> {
+        var data = WebhookEvents.asCommentCreated(event);
+        System.out.println(data.body());
+    }
+    case PROFILE_COMMENT_CREATED -> {
+        var data = WebhookEvents.asProfileCommentCreated(event);
+        System.out.println(data.authorUsername());
+    }
+    case MESSAGE_RECEIVED, MESSAGE_SENT, MESSAGE_DELIVERED, MESSAGE_READ,
+         MESSAGE_EDITED, MESSAGE_DELETED, MESSAGE_FAILED_WAITING_FOR_RETRY,
+         MESSAGE_FAILED -> {
+        var data = WebhookEvents.asMessageEvent(event);
+        System.out.println(data.message().body());
+    }
+    case REACTION_RECEIVED -> {
+        var data = WebhookEvents.asReactionEvent(event);
+        System.out.println(data.action() + " " + data.reaction());
+    }
+    default -> { /* ... */ }
+}
+```
+
+Event types: `post.processed`, `post.imported`, `platform_post.published`,
+`platform_post.failed`, `platform_post.failed_waiting_for_retry`,
+`platform_post.insights`, `profile.connected`, `profile.disconnected`,
+`profile.stats`, `media.failed`, `comment.created`, `profile_comment.created`,
+`message.received`, `message.sent`, `message.delivered`, `message.read`,
+`message.edited`, `message.deleted`, `message.failed_waiting_for_retry`,
+`message.failed`, `reaction.received`.
+
+Typed payloads (decoders on `WebhookEvents`):
+
+| Payload | Events | Decoder |
+| --- | --- | --- |
+| `CommentCreatedData` | `comment.created` | `asCommentCreated` |
+| `ProfileCommentCreatedData` | `profile_comment.created` | `asProfileCommentCreated` |
+| `MessageEventData` | the eight `message.*` events | `asMessageEvent` |
+| `ReactionEventData` | `reaction.received` | `asReactionEvent` |
+
 ### Comments
 
 ```java
@@ -352,6 +405,14 @@ import dev.postproxy.sdk.model.Comment;
 var comments = client.comments().list("post-id", "profile-id");
 for (var comment : comments.data()) {
     System.out.println(comment.authorUsername() + ": " + comment.body());
+    // Media attached to the comment (images, video, etc.)
+    for (var att : comment.attachments()) {
+        System.out.println("  attachment " + att.type() + ": " + att.url());
+    }
+    // Author signals (platform-specific), e.g. is_verified_user / follower_count
+    if (comment.metadata() != null) {
+        System.out.println("  metadata: " + comment.metadata());
+    }
     for (var reply : comment.replies()) {
         System.out.println("  " + reply.authorUsername() + ": " + reply.body());
     }
@@ -380,6 +441,91 @@ client.comments().unhide("post-id", "comment-id", "profile-id");
 // Like / unlike a comment
 client.comments().like("post-id", "comment-id", "profile-id");
 client.comments().unlike("post-id", "comment-id", "profile-id");
+
+// Private reply: send a DM in reply to a comment (Instagram & Facebook). Returns a Message.
+var message = client.comments().privateReply(
+    "post-id", "comment-id", "profile-id",
+    "Thanks for your comment — DM-ing you the details.");
+System.out.println(message.id() + " in chat " + message.chatId());
+```
+
+### Direct Messages
+
+Read and send 1:1 messages on profiles that support DMs (Facebook Messenger,
+Instagram, Telegram, Bluesky). Outbound sends are processed asynchronously and
+start with `status: pending`.
+
+```java
+import dev.postproxy.sdk.model.MessageDirection;
+import dev.postproxy.sdk.param.CreateChatParams;
+import dev.postproxy.sdk.param.EditMessageParams;
+import dev.postproxy.sdk.param.ListChatsParams;
+import dev.postproxy.sdk.param.ListMessagesParams;
+import dev.postproxy.sdk.param.ReactParams;
+import dev.postproxy.sdk.param.SendMessageParams;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+
+// List chats for a profile (paginated)
+var chats = client.chats().list("profile-id");
+var chatsFiltered = client.chats().list("profile-id", ListChatsParams.builder()
+    .perPage(20)
+    .build());
+
+// Create or find a chat by participant (idempotent)
+var chat = client.chats().create("profile-id", CreateChatParams.builder("igsid_8675309")
+    .participantUsername("jane_doe")
+    .participantName("Jane Doe")
+    .build());
+
+// Get / archive / unarchive a chat (archive is Bluesky-only)
+var fetched = client.chats().get(chat.id());
+client.chats().archive(chat.id());
+client.chats().unarchive(chat.id());
+
+// List messages in a chat
+var messages = client.messages().list(chat.id(), ListMessagesParams.builder()
+    .direction(MessageDirection.INBOUND)
+    .build());
+for (var msg : messages.data()) {
+    System.out.println(msg.direction().getValue() + ": " + msg.body());
+    for (var att : msg.attachments()) System.out.println("  " + att.type() + ": " + att.url());
+    for (var r : msg.reactions()) System.out.println("  " + r.reaction());
+}
+
+// Send a text message
+var sent = client.messages().send(chat.id(), SendMessageParams.builder()
+    .body("Yes, we ship worldwide!")
+    .build());
+
+// Send outside the 24h window with a tag (Facebook/Instagram)
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .body("Following up on your order.")
+    .tag("HUMAN_AGENT")
+    .build());
+
+// Send media — by hosted URL or by uploading a local file
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .media(List.of("https://cdn.example.com/photo.png"))
+    .build());
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .mediaFiles(List.of(Path.of("./photo.png")))
+    .build());
+
+// Get a single message
+var message = client.messages().get(sent.id());
+
+// Edit a message (Telegram only) — body and/or reply_markup
+client.messages().edit(sent.id(), EditMessageParams.builder()
+    .body("Updated answer: we ship to 90+ countries.")
+    .replyMarkup(Map.of("inline_keyboard", List.of(List.of(
+        Map.of("text", "Track order", "url", "https://shop.example.com/orders/123")))))
+    .build());
+
+// React / unreact (Facebook & Instagram)
+client.messages().react(sent.id(), ReactParams.builder().reaction("love").build());
+client.messages().unreact(sent.id());
 ```
 
 ### Profile comments (Google Business reviews)
@@ -584,7 +730,11 @@ Key types:
 | `WebhookDelivery` | id, eventId, eventType, responseStatus, attemptNumber, success, attemptedAt, createdAt |
 | `PlatformResult` | platform, status, params, error, attemptedAt, insights |
 | `ListResponse<T>` | data |
-| `Comment` | id, externalId, body, status, authorUsername, authorAvatarUrl, authorExternalId, parentExternalId, likeCount, isHidden, permalink, platformData, postedAt, createdAt, replies |
+| `Comment` | id, externalId, body, status, authorUsername, authorAvatarUrl, authorExternalId, metadata, parentExternalId, likeCount, isHidden, permalink, platformData, attachments, postedAt, createdAt, replies |
+| `Chat` | id, profileId, platform, participantExternalId, participantUsername, participantName, participantAvatarUrl, externalConversationId, lastInboundAt, lastOutboundAt, lastMessageAt, metadata, archived, createdAt |
+| `Message` | id, chatId, externalId, direction, body, status, tag, externalCommentId, errorMessage, platformData, externalPostedAt, externalDeliveredAt, externalReadAt, externalEditedAt, replyToExternalId, replyMarkup, externalDeletedAt, reactions, attachments, isUnsupported, createdAt |
+| `Attachment` | id, type, url, status, externalId |
+| `Reaction` | senderExternalId, emoji, reaction, at |
 | `AcceptedResponse` | accepted |
 | `PaginatedResponse<T>` | data, total, page, perPage |
 | `StatsResponse` | data (Map&lt;String, PostStats&gt;) |

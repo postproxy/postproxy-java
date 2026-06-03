@@ -90,6 +90,84 @@ class WebhookEventsTest {
         assertEquals("Jane", data.authorName());
     }
 
+    private static Map<String, Object> messageData() {
+        var msg = new java.util.LinkedHashMap<String, Object>();
+        msg.put("id", "msg_111");
+        msg.put("chat_id", "chat_xyz789");
+        msg.put("direction", "inbound");
+        msg.put("body", "hello");
+        msg.put("status", "received");
+        msg.put("reactions", List.of());
+        msg.put("attachments", List.of());
+        msg.put("is_unsupported", false);
+        msg.put("created_at", "2026-05-12T00:00:00Z");
+        return Map.of("message", msg);
+    }
+
+    @Test
+    void parsesAllMessageEvents() {
+        for (var type : List.of(
+                "message.received", "message.sent", "message.delivered", "message.read",
+                "message.edited", "message.deleted", "message.failed_waiting_for_retry",
+                "message.failed")) {
+            var event = WebhookEvents.parse(envelope(type, messageData()));
+            assertNotNull(event.type());
+            var data = WebhookEvents.asMessageEvent(event);
+            assertEquals("msg_111", data.message().id());
+            assertEquals("chat_xyz789", data.message().chatId());
+        }
+    }
+
+    @Test
+    void parsesReactionReceived() {
+        var msg = new java.util.LinkedHashMap<String, Object>();
+        msg.put("id", "msg_111");
+        msg.put("chat_id", "chat_xyz789");
+        msg.put("direction", "inbound");
+        msg.put("body", "hello");
+        msg.put("status", "received");
+        msg.put("reactions", List.of());
+        msg.put("attachments", List.of());
+        msg.put("is_unsupported", false);
+        msg.put("created_at", "2026-05-12T00:00:00Z");
+
+        var data = new java.util.LinkedHashMap<String, Object>();
+        data.put("message", msg);
+        data.put("sender_external_id", "psid_123");
+        data.put("action", "react");
+        data.put("reaction", "love");
+        data.put("emoji", "❤️");
+        data.put("occurred_at", "2026-06-01T15:02:00Z");
+
+        var event = WebhookEvents.parse(envelope("reaction.received", data));
+        assertEquals(WebhookEventType.REACTION_RECEIVED, event.type());
+        var parsed = WebhookEvents.asReactionEvent(event);
+        assertEquals("react", parsed.action());
+        assertEquals("love", parsed.reaction());
+        assertEquals("psid_123", parsed.senderExternalId());
+        assertEquals("msg_111", parsed.message().id());
+    }
+
+    @Test
+    void parsesProfileCommentCreated() {
+        var data = new java.util.LinkedHashMap<String, Object>();
+        data.put("id", "pc1");
+        data.put("profile_id", "prof_abc");
+        data.put("platform", "google_business");
+        data.put("placement_id", "loc_1");
+        data.put("body", "Great service");
+        data.put("status", "published");
+        data.put("author_username", "happy_customer");
+        data.put("created_at", "2026-05-12T00:00:00Z");
+
+        var event = WebhookEvents.parse(envelope("profile_comment.created", data));
+        assertEquals(WebhookEventType.PROFILE_COMMENT_CREATED, event.type());
+        var parsed = WebhookEvents.asProfileCommentCreated(event);
+        assertEquals("pc1", parsed.id());
+        assertEquals("loc_1", parsed.placementId());
+        assertEquals("happy_customer", parsed.authorUsername());
+    }
+
     @Test
     void rejectsUnknownType() {
         assertThrows(WebhookParseException.class, () ->

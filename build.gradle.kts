@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.postproxy"
-version = "1.8.0"
+version = "1.10.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17

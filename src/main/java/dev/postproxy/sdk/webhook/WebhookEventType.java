@@ -13,7 +13,17 @@ public enum WebhookEventType {
     PROFILE_DISCONNECTED("profile.disconnected"),
     PROFILE_STATS("profile.stats"),
     MEDIA_FAILED("media.failed"),
-    COMMENT_CREATED("comment.created");
+    COMMENT_CREATED("comment.created"),
+    PROFILE_COMMENT_CREATED("profile_comment.created"),
+    MESSAGE_RECEIVED("message.received"),
+    MESSAGE_SENT("message.sent"),
+    MESSAGE_DELIVERED("message.delivered"),
+    MESSAGE_READ("message.read"),
+    MESSAGE_EDITED("message.edited"),
+    MESSAGE_DELETED("message.deleted"),
+    MESSAGE_FAILED_WAITING_FOR_RETRY("message.failed_waiting_for_retry"),
+    MESSAGE_FAILED("message.failed"),
+    REACTION_RECEIVED("reaction.received");
 
     private final String value;
 

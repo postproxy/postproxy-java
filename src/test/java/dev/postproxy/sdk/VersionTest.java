@@ -8,7 +8,7 @@ class VersionTest {
 
     @Test
     void versionIsBumped() {
-        assertEquals("1.7.0", Version.VERSION);
+        assertEquals("1.10.0", Version.VERSION);
     }
 
     @Test
