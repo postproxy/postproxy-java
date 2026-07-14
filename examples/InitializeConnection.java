@@ -19,5 +19,15 @@ public class InitializeConnection {
                 "https://your-app.com/callback"
         );
         System.out.println("Connection URL: " + connection.url());
+
+        // After connecting, list a profile's placements (Pages, channels, locations)
+        var placements = client.profiles().placements("profile-id");
+        placements.data().forEach(p -> System.out.println("Placement: " + p.name() + " (" + p.id() + ")"));
+
+        // Move one placement to a different profile group
+        if (!placements.data().isEmpty()) {
+            client.profiles().assignPlacementToGroup(
+                    "profile-id", placements.data().get(0).id(), "other-group-id");
+        }
     }
 }

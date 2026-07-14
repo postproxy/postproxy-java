@@ -9,9 +9,11 @@ import dev.postproxy.sdk.param.ListPostsParams;
 import dev.postproxy.sdk.param.PlatformParams;
 import dev.postproxy.sdk.param.ThreadChildInput;
 import dev.postproxy.sdk.param.TikTokParams;
+import dev.postproxy.sdk.param.TwitterParams;
 import dev.postproxy.sdk.model.InstagramFormat;
 import dev.postproxy.sdk.model.PostStatus;
 import dev.postproxy.sdk.model.TikTokPrivacy;
+import dev.postproxy.sdk.model.TwitterFormat;
 import dev.postproxy.sdk.resource.PostsResource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -125,6 +127,30 @@ class PostsResourceTest {
 
         var body = (Map<String, Object>) mock.getRequests().get(0).body();
         assertNotNull(body.get("platforms"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void createsTwitterPollPost() {
+        var mock = new MockPostProxyClient(MOCK_POST, 200, null);
+        var posts = new PostsResource(mock);
+        posts.create(CreatePostParams.builder()
+                .body("Which framework?")
+                .profiles(List.of("profile-1"))
+                .platforms(PlatformParams.builder()
+                        .twitter(TwitterParams.builder()
+                                .format(TwitterFormat.POLL)
+                                .pollOptions(List.of("Rails", "Django", "Laravel"))
+                                .pollDurationMinutes(1440)
+                                .build())
+                        .build())
+                .build());
+
+        var body = (Map<String, Object>) mock.getRequests().get(0).body();
+        var platforms = (PlatformParams) body.get("platforms");
+        assertEquals(TwitterFormat.POLL, platforms.twitter().format());
+        assertEquals(List.of("Rails", "Django", "Laravel"), platforms.twitter().pollOptions());
+        assertEquals(1440, platforms.twitter().pollDurationMinutes());
     }
 
     @SuppressWarnings("unchecked")

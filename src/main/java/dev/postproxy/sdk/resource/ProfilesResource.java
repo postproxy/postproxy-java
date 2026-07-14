@@ -5,6 +5,7 @@ import dev.postproxy.sdk.PostProxyClient;
 import dev.postproxy.sdk.model.*;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ProfilesResource {
@@ -72,6 +73,70 @@ public class ProfilesResource {
         if (pgId != null) query.put("profile_group_id", pgId);
 
         return client.get("/api/profiles/" + id + "/stats", query, new TypeReference<>() {});
+    }
+
+    /**
+     * Moves a placement (e.g. a Facebook Page or Telegram channel) to another
+     * profile group. {@code placementId} is the placement's external ID as
+     * returned by {@link #placements(String)}.
+     */
+    public AssignedPlacement assignPlacementToGroup(String id, String placementId, String targetProfileGroupId) {
+        return assignPlacementToGroup(id, placementId, targetProfileGroupId, null);
+    }
+
+    public AssignedPlacement assignPlacementToGroup(String id, String placementId, String targetProfileGroupId, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("placement_id", placementId);
+        body.put("target_profile_group_id", targetProfileGroupId);
+
+        return client.patch("/api/profiles/" + id + "/assign_placement_to_group", query, body, new TypeReference<>() {});
+    }
+
+    /**
+     * Lists DM ice breakers. Supported for Instagram profiles only.
+     */
+    public IceBreakersResponse iceBreakers(String id) {
+        return iceBreakers(id, null);
+    }
+
+    public IceBreakersResponse iceBreakers(String id, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        return client.get("/api/profiles/" + id + "/ice_breakers", query, new TypeReference<>() {});
+    }
+
+    /**
+     * Replaces the DM ice breakers for a profile (1-4 items).
+     */
+    public SuccessResponse setIceBreakers(String id, List<IceBreaker> iceBreakers) {
+        return setIceBreakers(id, iceBreakers, null);
+    }
+
+    public SuccessResponse setIceBreakers(String id, List<IceBreaker> iceBreakers, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        return client.post("/api/profiles/" + id + "/ice_breakers", query,
+                Map.of("ice_breakers", iceBreakers), new TypeReference<>() {});
+    }
+
+    public SuccessResponse deleteIceBreakers(String id) {
+        return deleteIceBreakers(id, null);
+    }
+
+    public SuccessResponse deleteIceBreakers(String id, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        return client.delete("/api/profiles/" + id + "/ice_breakers", query, new TypeReference<>() {});
     }
 
     public SuccessResponse delete(String id) {

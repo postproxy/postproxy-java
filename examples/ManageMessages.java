@@ -1,4 +1,5 @@
 import dev.postproxy.sdk.PostProxy;
+import dev.postproxy.sdk.model.IceBreaker;
 import dev.postproxy.sdk.model.MessageDirection;
 import dev.postproxy.sdk.param.CreateChatParams;
 import dev.postproxy.sdk.param.EditMessageParams;
@@ -90,5 +91,14 @@ public class ManageMessages {
                 "your-post-id", "comment-id", profileId,
                 "Thanks for your comment — DM-ing you the details.");
         System.out.println("Private reply message: " + reply.id() + " in chat " + reply.chatId());
+
+        // Ice breakers (Instagram only): FAQ prompts shown when a user opens a chat
+        client.profiles().setIceBreakers(profileId, List.of(
+                new IceBreaker("What services do you offer?", "services"),
+                new IceBreaker("What are your hours?", "hours")
+        ));
+        var iceBreakers = client.profiles().iceBreakers(profileId);
+        iceBreakers.iceBreakers().forEach(ib -> System.out.println("Ice breaker: " + ib.question()));
+        // client.profiles().deleteIceBreakers(profileId);
     }
 }

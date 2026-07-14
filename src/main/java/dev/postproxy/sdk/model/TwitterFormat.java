@@ -3,7 +3,8 @@ package dev.postproxy.sdk.model;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum TwitterFormat {
-    POST("post");
+    POST("post"),
+    POLL("poll");
 
     private final String value;
 

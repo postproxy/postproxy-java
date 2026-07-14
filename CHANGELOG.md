@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.11.0] - 2026-07-14
+
+### Added
+
+- `profiles().iceBreakers(id)`, `profiles().setIceBreakers(id, iceBreakers)`, and `profiles().deleteIceBreakers(id)` for managing Instagram DM ice breakers, with `IceBreaker` and `IceBreakersResponse` models.
+- `profiles().assignPlacementToGroup(id, placementId, targetProfileGroupId)` to move a placement (Facebook Page, Telegram channel, GBP location) to another profile group; returns the new `AssignedPlacement` model.
+- `Placement.metadata` field.
+- Twitter polls: `TwitterFormat.POLL`, and `TwitterParams` gains `pollOptions` (2-4 choices, max 25 chars each) and `pollDurationMinutes` (5-10080).
+
+### Fixed
+
+- `gradle.properties` version aligned with the SDK version (was stuck at 1.7.0).
+
 ## [1.10.0] - 2026-06-03
 
 ### Added

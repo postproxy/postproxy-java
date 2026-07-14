@@ -50,6 +50,57 @@ class ProfilesResourceTest {
     }
 
     @Test
+    void assignsPlacementToGroup() {
+        var mock = new MockPostProxyClient(Map.of(
+                "id", "pl-1",
+                "name", "Feed",
+                "metadata", Map.of(),
+                "profile_group_id", "pg-2"
+        ), 200, null);
+        var profiles = new ProfilesResource(mock);
+        var result = profiles.assignPlacementToGroup("prof-1", "pl-1", "pg-2");
+        assertEquals("pg-2", result.profileGroupId());
+        var request = mock.getRequests().get(0);
+        assertEquals("PATCH", request.method());
+        assertTrue(request.url().contains("/profiles/prof-1/assign_placement_to_group"));
+        assertEquals(Map.of("placement_id", "pl-1", "target_profile_group_id", "pg-2"), request.body());
+    }
+
+    @Test
+    void listsIceBreakers() {
+        var mock = new MockPostProxyClient(Map.of(
+                "ice_breakers", List.of(Map.of("question", "What do you do?", "payload", "services"))
+        ), 200, null);
+        var profiles = new ProfilesResource(mock);
+        var result = profiles.iceBreakers("prof-1");
+        assertEquals(1, result.iceBreakers().size());
+        assertEquals("What do you do?", result.iceBreakers().get(0).question());
+        assertTrue(mock.getRequests().get(0).url().contains("/profiles/prof-1/ice_breakers"));
+    }
+
+    @Test
+    void setsIceBreakers() {
+        var mock = new MockPostProxyClient(Map.of("success", true), 200, null);
+        var profiles = new ProfilesResource(mock);
+        var result = profiles.setIceBreakers("prof-1",
+                List.of(new dev.postproxy.sdk.model.IceBreaker("What do you do?", "services")));
+        assertTrue(result.success());
+        var request = mock.getRequests().get(0);
+        assertEquals("POST", request.method());
+        assertTrue(request.url().contains("/profiles/prof-1/ice_breakers"));
+    }
+
+    @Test
+    void deletesIceBreakers() {
+        var mock = new MockPostProxyClient(Map.of("success", true), 200, null);
+        var profiles = new ProfilesResource(mock);
+        var result = profiles.deleteIceBreakers("prof-1");
+        assertTrue(result.success());
+        assertEquals("DELETE", mock.getRequests().get(0).method());
+        assertTrue(mock.getRequests().get(0).url().contains("/profiles/prof-1/ice_breakers"));
+    }
+
+    @Test
     void deletesProfile() {
         var mock = new MockPostProxyClient(Map.of("success", true), 200, null);
         var profiles = new ProfilesResource(mock);

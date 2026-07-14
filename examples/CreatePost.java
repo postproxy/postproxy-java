@@ -1,6 +1,7 @@
 import dev.postproxy.sdk.PostProxy;
 import dev.postproxy.sdk.model.InstagramFormat;
 import dev.postproxy.sdk.model.TikTokPrivacy;
+import dev.postproxy.sdk.model.TwitterFormat;
 import dev.postproxy.sdk.param.*;
 import dev.postproxy.sdk.param.ThreadChildInput;
 
@@ -52,6 +53,20 @@ public class CreatePost {
                                                 .build())
                                 .build());
                 System.out.println("Post with platform params: " + postWithParams);
+
+                // Twitter poll: 2-4 options (max 25 chars each), 5-10080 minutes
+                var pollPost = client.posts().create(CreatePostParams.builder()
+                                .body("Which framework?")
+                                .profiles(List.of("twitter"))
+                                .platforms(PlatformParams.builder()
+                                                .twitter(TwitterParams.builder()
+                                                                .format(TwitterFormat.POLL)
+                                                                .pollOptions(List.of("Rails", "Django", "Laravel", "Other"))
+                                                                .pollDurationMinutes(1440)
+                                                                .build())
+                                                .build())
+                                .build());
+                System.out.println("Poll post: " + pollPost);
 
                 // Create a scheduled post
                 var scheduledPost = client.posts().create(CreatePostParams.builder()
