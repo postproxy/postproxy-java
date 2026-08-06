@@ -52,7 +52,7 @@ public class QueuesResource {
         body.put("profile_group_id", params.profileGroupId());
         body.put("post_queue", postQueue);
 
-        return client.post("/api/post_queues", null, body, new TypeReference<>() {});
+        return client.post("/api/post_queues", null, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     public Queue update(String id, UpdateQueueParams params) {
@@ -67,10 +67,14 @@ public class QueuesResource {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("post_queue", postQueue);
 
-        return client.patch("/api/post_queues/" + id, null, body, new TypeReference<>() {});
+        return client.patch("/api/post_queues/" + id, null, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     public DeleteResponse delete(String id) {
-        return client.delete("/api/post_queues/" + id, null, new TypeReference<>() {});
+        return delete(id, null);
+    }
+
+    public DeleteResponse delete(String id, String idempotencyKey) {
+        return client.delete("/api/post_queues/" + id, null, new TypeReference<>() {}, idempotencyKey);
     }
 }

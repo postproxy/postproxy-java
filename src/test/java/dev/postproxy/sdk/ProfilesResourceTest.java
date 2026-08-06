@@ -1,5 +1,8 @@
 package dev.postproxy.sdk;
 
+import dev.postproxy.sdk.exception.ConflictException;
+import dev.postproxy.sdk.model.PostSyncStatus;
+import dev.postproxy.sdk.model.PostSyncTrigger;
 import dev.postproxy.sdk.resource.ProfilesResource;
 import org.junit.jupiter.api.Test;
 
@@ -107,5 +110,93 @@ class ProfilesResourceTest {
         var result = profiles.delete("prof-1");
         assertTrue(result.success());
         assertEquals("DELETE", mock.getRequests().get(0).method());
+    }
+
+    private static final Map<String, Object> MOCK_POST_SYNC = Map.ofEntries(
+            Map.entry("id", "sync456def"),
+            Map.entry("profile_id", "prof-1"),
+            Map.entry("kind", "posts"),
+            Map.entry("trigger", "backfill"),
+            Map.entry("status", "running"),
+            Map.entry("started_at", "2026-08-06T09:15:02.000Z"),
+            Map.entry("posts_seen", 150),
+            Map.entry("posts_imported", 143),
+            Map.entry("backfill_from", "2025-01-01T00:00:00.000Z"),
+            Map.entry("oldest_posted_at", "2025-11-04T18:22:00.000Z"),
+            Map.entry("created_at", "2026-08-06T09:15:00.000Z")
+    );
+
+    @Test
+    void startsAPostsBackfill() {
+        var response = new java.util.LinkedHashMap<String, Object>(MOCK_POST_SYNC);
+        response.put("status", "pending");
+        var mock = new MockPostProxyClient(response, 202, null);
+        var profiles = new ProfilesResource(mock);
+
+        var sync = profiles.backfillPosts("prof-1", "2025-01-01");
+
+        assertEquals("sync456def", sync.id());
+        assertEquals(PostSyncTrigger.BACKFILL, sync.trigger());
+        assertEquals(PostSyncStatus.PENDING, sync.status());
+
+        var request = mock.getRequests().get(0);
+        assertEquals("POST", request.method());
+        assertTrue(request.url().contains("/profiles/prof-1/backfill_posts"));
+        assertEquals(Map.of("from", "2025-01-01"), request.body());
+    }
+
+    @Test
+    void sendsIdempotencyKeyWithBackfill() {
+        var mock = new MockPostProxyClient(MOCK_POST_SYNC, 202, null);
+        var profiles = new ProfilesResource(mock);
+
+        profiles.backfillPosts("prof-1", "2025-01-01", null, "key-1");
+
+        assertEquals("key-1", mock.getRequests().get(0).idempotencyKey());
+    }
+
+    @Test
+    void throwsConflictWhenBackfillAlreadyRunning() {
+        var mock = new MockPostProxyClient(
+                Map.of("error", "A posts backfill is already running for this profile",
+                        "profile_sync_id", "sync456def"),
+                409, null);
+        var profiles = new ProfilesResource(mock);
+
+        var e = assertThrows(ConflictException.class, () -> profiles.backfillPosts("prof-1", "2025-01-01"));
+        assertEquals(409, e.getStatusCode());
+        assertEquals("sync456def", e.getResponse().get("profile_sync_id"));
+    }
+
+    @Test
+    void listsPostSyncsWithFilters() {
+        var mock = new MockPostProxyClient(
+                Map.of("total", 1, "page", 0, "per_page", 25, "data", List.of(MOCK_POST_SYNC)), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var result = profiles.postSyncs("prof-1", PostSyncTrigger.BACKFILL, PostSyncStatus.RUNNING, null, 25, null);
+
+        assertEquals(1, result.total());
+        assertEquals(143, result.data().get(0).postsImported());
+        assertEquals("2025-11-04T18:22:00.000Z", result.data().get(0).oldestPostedAt());
+
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("/profiles/prof-1/post_syncs"));
+        assertTrue(url.contains("trigger=backfill"));
+        assertTrue(url.contains("status=running"));
+        assertTrue(url.contains("per_page=25"));
+    }
+
+    @Test
+    void getsASinglePostSync() {
+        var response = new java.util.LinkedHashMap<String, Object>(MOCK_POST_SYNC);
+        response.put("status", "completed");
+        var mock = new MockPostProxyClient(response, 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var sync = profiles.postSync("prof-1", "sync456def");
+
+        assertEquals(PostSyncStatus.COMPLETED, sync.status());
+        assertTrue(mock.getRequests().get(0).url().contains("/profiles/prof-1/post_syncs/sync456def"));
     }
 }

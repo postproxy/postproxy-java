@@ -63,7 +63,7 @@ public class MessagesResource {
         if (params.replyToExternalId() != null) body.put("reply_to_external_id", params.replyToExternalId());
         if (params.replyMarkup() != null) body.put("reply_markup", params.replyMarkup());
 
-        return client.post("/api/chats/" + chatId + "/messages", query, body, new TypeReference<>() {});
+        return client.post("/api/chats/" + chatId + "/messages", query, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     private Message sendMultipart(String chatId, SendMessageParams params, Map<String, String> query) {
@@ -78,7 +78,7 @@ public class MessagesResource {
         Map<String, List<Path>> fileGroups = new LinkedHashMap<>();
         fileGroups.put("media[]", params.mediaFiles());
 
-        return client.postMultipart("/api/chats/" + chatId + "/messages", query, fields, fileGroups, new TypeReference<>() {});
+        return client.postMultipart("/api/chats/" + chatId + "/messages", query, fields, fileGroups, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     public Message get(String messageId) {
@@ -102,7 +102,7 @@ public class MessagesResource {
         if (params.body() != null) body.put("body", params.body());
         if (params.replyMarkup() != null) body.put("reply_markup", params.replyMarkup());
 
-        return client.patch("/api/messages/" + messageId, query, body, new TypeReference<>() {});
+        return client.patch("/api/messages/" + messageId, query, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     public Message react(String messageId) {
@@ -126,7 +126,8 @@ public class MessagesResource {
                 "/api/messages/" + messageId + "/react",
                 query,
                 body.isEmpty() ? null : body,
-                new TypeReference<>() {}
+                new TypeReference<>() {},
+                params != null ? params.idempotencyKey() : null
         );
     }
 
@@ -135,10 +136,14 @@ public class MessagesResource {
     }
 
     public Message unreact(String messageId, String profileGroupId) {
+        return unreact(messageId, profileGroupId, null);
+    }
+
+    public Message unreact(String messageId, String profileGroupId, String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
 
-        return client.delete("/api/messages/" + messageId + "/unreact", query, new TypeReference<>() {});
+        return client.delete("/api/messages/" + messageId + "/unreact", query, new TypeReference<>() {}, idempotencyKey);
     }
 }

@@ -85,6 +85,11 @@ public class ProfilesResource {
     }
 
     public AssignedPlacement assignPlacementToGroup(String id, String placementId, String targetProfileGroupId, String profileGroupId) {
+        return assignPlacementToGroup(id, placementId, targetProfileGroupId, profileGroupId, null);
+    }
+
+    public AssignedPlacement assignPlacementToGroup(String id, String placementId, String targetProfileGroupId,
+                                                    String profileGroupId, String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
@@ -93,7 +98,66 @@ public class ProfilesResource {
         body.put("placement_id", placementId);
         body.put("target_profile_group_id", targetProfileGroupId);
 
-        return client.patch("/api/profiles/" + id + "/assign_placement_to_group", query, body, new TypeReference<>() {});
+        return client.patch("/api/profiles/" + id + "/assign_placement_to_group", query, body, new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /**
+     * Imports older posts from the platform.
+     *
+     * <p>Walks the profile's feed backwards from the newest post until it
+     * reaches {@code from} or the platform stops returning posts. Runs in the
+     * background — poll {@link #postSync(String, String)} with the returned id
+     * for progress. Only one backfill runs per profile; starting a second
+     * throws {@link dev.postproxy.sdk.exception.ConflictException} carrying the
+     * running one's {@code profile_sync_id}.
+     */
+    public PostSync backfillPosts(String id, String from) {
+        return backfillPosts(id, from, null, null);
+    }
+
+    public PostSync backfillPosts(String id, String from, String profileGroupId, String idempotencyKey) {
+        Map<String, String> query = new LinkedHashMap<>();
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        return client.post("/api/profiles/" + id + "/backfill_posts", query,
+                Map.of("from", from), new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /**
+     * Lists post sync runs for a profile, newest first. Runs are kept for 30 days.
+     */
+    public PaginatedResponse<PostSync> postSyncs(String id) {
+        return postSyncs(id, null, null, null, null, null);
+    }
+
+    public PaginatedResponse<PostSync> postSyncs(String id, PostSyncTrigger trigger, PostSyncStatus status,
+                                                 Integer page, Integer perPage, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        if (trigger != null) query.put("trigger", trigger.getValue());
+        if (status != null) query.put("status", status.getValue());
+        if (page != null) query.put("page", page.toString());
+        if (perPage != null) query.put("per_page", perPage.toString());
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        return client.get("/api/profiles/" + id + "/post_syncs", query, new TypeReference<>() {});
+    }
+
+    /**
+     * Fetches a single run. Poll this to follow a backfill to completion — the
+     * run is finished when its status is COMPLETED or FAILED.
+     */
+    public PostSync postSync(String id, String postSyncId) {
+        return postSync(id, postSyncId, null);
+    }
+
+    public PostSync postSync(String id, String postSyncId, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+
+        return client.get("/api/profiles/" + id + "/post_syncs/" + postSyncId, query, new TypeReference<>() {});
     }
 
     /**
@@ -119,12 +183,17 @@ public class ProfilesResource {
     }
 
     public SuccessResponse setIceBreakers(String id, List<IceBreaker> iceBreakers, String profileGroupId) {
+        return setIceBreakers(id, iceBreakers, profileGroupId, null);
+    }
+
+    public SuccessResponse setIceBreakers(String id, List<IceBreaker> iceBreakers, String profileGroupId,
+                                          String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
 
         return client.post("/api/profiles/" + id + "/ice_breakers", query,
-                Map.of("ice_breakers", iceBreakers), new TypeReference<>() {});
+                Map.of("ice_breakers", iceBreakers), new TypeReference<>() {}, idempotencyKey);
     }
 
     public SuccessResponse deleteIceBreakers(String id) {
@@ -132,11 +201,15 @@ public class ProfilesResource {
     }
 
     public SuccessResponse deleteIceBreakers(String id, String profileGroupId) {
+        return deleteIceBreakers(id, profileGroupId, null);
+    }
+
+    public SuccessResponse deleteIceBreakers(String id, String profileGroupId, String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
 
-        return client.delete("/api/profiles/" + id + "/ice_breakers", query, new TypeReference<>() {});
+        return client.delete("/api/profiles/" + id + "/ice_breakers", query, new TypeReference<>() {}, idempotencyKey);
     }
 
     public SuccessResponse delete(String id) {
@@ -144,10 +217,14 @@ public class ProfilesResource {
     }
 
     public SuccessResponse delete(String id, String profileGroupId) {
+        return delete(id, profileGroupId, null);
+    }
+
+    public SuccessResponse delete(String id, String profileGroupId, String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
 
-        return client.delete("/api/profiles/" + id, query, new TypeReference<>() {});
+        return client.delete("/api/profiles/" + id, query, new TypeReference<>() {}, idempotencyKey);
     }
 }

@@ -49,36 +49,62 @@ public class PostProxyClient {
     }
 
     public <T> T get(String path, Map<String, String> queryParams, TypeReference<T> type) {
-        return request("GET", path, queryParams, null, type);
+        return request("GET", path, queryParams, null, type, null);
     }
 
     public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type) {
-        return request("POST", path, queryParams, body, type);
+        return post(path, queryParams, body, type, null);
+    }
+
+    /** {@code idempotencyKey} is sent as the Idempotency-Key header when non-null. */
+    public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
+                      String idempotencyKey) {
+        return request("POST", path, queryParams, body, type, idempotencyKey);
     }
 
     public <T> T patch(String path, Map<String, String> queryParams, Object body, TypeReference<T> type) {
-        return request("PATCH", path, queryParams, body, type);
+        return patch(path, queryParams, body, type, null);
+    }
+
+    /** {@code idempotencyKey} is sent as the Idempotency-Key header when non-null. */
+    public <T> T patch(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
+                       String idempotencyKey) {
+        return request("PATCH", path, queryParams, body, type, idempotencyKey);
     }
 
     public <T> T delete(String path, Map<String, String> queryParams, TypeReference<T> type) {
-        return request("DELETE", path, queryParams, null, type);
+        return delete(path, queryParams, type, null);
+    }
+
+    /** {@code idempotencyKey} is sent as the Idempotency-Key header when non-null. */
+    public <T> T delete(String path, Map<String, String> queryParams, TypeReference<T> type,
+                        String idempotencyKey) {
+        return request("DELETE", path, queryParams, null, type, idempotencyKey);
     }
 
     public <T> T postMultipart(String path, Map<String, String> queryParams,
                                 Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type) {
+        return postMultipart(path, queryParams, fields, fileGroups, type, null);
+    }
+
+    public <T> T postMultipart(String path, Map<String, String> queryParams,
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
+                                String idempotencyKey) {
         try {
             String boundary = "----PostProxy" + UUID.randomUUID().toString().replace("-", "");
             byte[] body = buildMultipartBody(boundary, fields, fileGroups);
 
             URI uri = buildUri(path, queryParams);
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(uri)
                     .header("Authorization", "Bearer " + apiKey)
                     .header("User-Agent", USER_AGENT)
                     .header("Accept", "application/json")
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .POST(HttpRequest.BodyPublishers.ofByteArray(body))
-                    .build();
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+            if (idempotencyKey != null) {
+                builder.header("Idempotency-Key", idempotencyKey);
+            }
+            HttpRequest request = builder.POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return handleResponse(response, type);
@@ -91,19 +117,27 @@ public class PostProxyClient {
 
     public <T> T patchMultipart(String path, Map<String, String> queryParams,
                                 Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type) {
+        return patchMultipart(path, queryParams, fields, fileGroups, type, null);
+    }
+
+    public <T> T patchMultipart(String path, Map<String, String> queryParams,
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
+                                String idempotencyKey) {
         try {
             String boundary = "----PostProxy" + UUID.randomUUID().toString().replace("-", "");
             byte[] body = buildMultipartBody(boundary, fields, fileGroups);
 
             URI uri = buildUri(path, queryParams);
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(uri)
                     .header("Authorization", "Bearer " + apiKey)
                     .header("User-Agent", USER_AGENT)
                     .header("Accept", "application/json")
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                    .method("PATCH", HttpRequest.BodyPublishers.ofByteArray(body))
-                    .build();
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+            if (idempotencyKey != null) {
+                builder.header("Idempotency-Key", idempotencyKey);
+            }
+            HttpRequest request = builder.method("PATCH", HttpRequest.BodyPublishers.ofByteArray(body)).build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return handleResponse(response, type);
@@ -115,7 +149,7 @@ public class PostProxyClient {
     }
 
     private <T> T request(String method, String path, Map<String, String> queryParams,
-                           Object body, TypeReference<T> type) {
+                           Object body, TypeReference<T> type, String idempotencyKey) {
         try {
             URI uri = buildUri(path, queryParams);
             HttpRequest.Builder builder = HttpRequest.newBuilder()
@@ -123,6 +157,10 @@ public class PostProxyClient {
                     .header("Authorization", "Bearer " + apiKey)
                     .header("User-Agent", USER_AGENT)
                     .header("Accept", "application/json");
+
+            if (idempotencyKey != null) {
+                builder.header("Idempotency-Key", idempotencyKey);
+            }
 
             if (body != null) {
                 String json = objectMapper.writeValueAsString(body);
@@ -205,6 +243,7 @@ public class PostProxyClient {
             case 400 -> new BadRequestException(message, parsed);
             case 401 -> new AuthenticationException(message, parsed);
             case 404 -> new NotFoundException(message, parsed);
+            case 409 -> new ConflictException(message, parsed);
             case 422 -> new ValidationException(message, parsed);
             default -> new PostProxyException(message, status, parsed);
         };

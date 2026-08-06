@@ -5,7 +5,9 @@ import java.util.Map;
 public record EditMessageParams(
         String body,
         Map<String, Object> replyMarkup,
-        String profileGroupId
+        String profileGroupId,
+        /** Optional Idempotency-Key: retrying with the same key replays the original response. */
+        @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey
 ) {
     public static Builder builder() {
         return new Builder();
@@ -15,13 +17,15 @@ public record EditMessageParams(
         private String body;
         private Map<String, Object> replyMarkup;
         private String profileGroupId;
+        private String idempotencyKey;
 
         public Builder body(String body) { this.body = body; return this; }
         public Builder replyMarkup(Map<String, Object> replyMarkup) { this.replyMarkup = replyMarkup; return this; }
         public Builder profileGroupId(String profileGroupId) { this.profileGroupId = profileGroupId; return this; }
+        public Builder idempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; return this; }
 
         public EditMessageParams build() {
-            return new EditMessageParams(body, replyMarkup, profileGroupId);
+            return new EditMessageParams(body, replyMarkup, profileGroupId, idempotencyKey);
         }
     }
 }

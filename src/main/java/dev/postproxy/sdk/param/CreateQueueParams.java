@@ -9,7 +9,9 @@ public record CreateQueueParams(
         String description,
         String timezone,
         Integer jitter,
-        List<Map<String, Object>> timeslots
+        List<Map<String, Object>> timeslots,
+        /** Optional Idempotency-Key: retrying with the same key replays the original response. */
+        @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey
 ) {
     public static Builder builder() {
         return new Builder();
@@ -22,6 +24,7 @@ public record CreateQueueParams(
         private String timezone;
         private Integer jitter;
         private List<Map<String, Object>> timeslots;
+        private String idempotencyKey;
 
         public Builder name(String name) { this.name = name; return this; }
         public Builder profileGroupId(String profileGroupId) { this.profileGroupId = profileGroupId; return this; }
@@ -29,11 +32,12 @@ public record CreateQueueParams(
         public Builder timezone(String timezone) { this.timezone = timezone; return this; }
         public Builder jitter(Integer jitter) { this.jitter = jitter; return this; }
         public Builder timeslots(List<Map<String, Object>> timeslots) { this.timeslots = timeslots; return this; }
+        public Builder idempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; return this; }
 
         public CreateQueueParams build() {
             if (name == null) throw new IllegalArgumentException("name is required");
             if (profileGroupId == null) throw new IllegalArgumentException("profileGroupId is required");
-            return new CreateQueueParams(name, profileGroupId, description, timezone, jitter, timeslots);
+            return new CreateQueueParams(name, profileGroupId, description, timezone, jitter, timeslots, idempotencyKey);
         }
     }
 }

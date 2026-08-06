@@ -28,8 +28,26 @@ public class ManageComments {
             }
         }
 
-        // Create a comment
-        var newComment = client.comments().create(postId, profileId, "Thanks for the feedback!");
+        // Filter the per-post list by when PostProxy received the comment
+        var recent = client.comments().list(postId, profileId, null, null, "2026-03-25", "2026-03-26");
+        System.out.println("Comments received 2026-03-25..26: " + recent.total());
+
+        // List comments across every post in the profile group. Flat: replies
+        // come back as their own entries linked by parentExternalId.
+        var across = client.comments().listAll(
+                null, java.util.List.of("instagram"), "2026-03-25", null, null, 50, null);
+        System.out.println("Comments across posts: " + across.total());
+        for (var c : across.data()) {
+            var kind = c.parentExternalId() == null ? "comment" : "reply";
+            System.out.println("  [" + c.platform().getValue() + "] " + kind + " on post " + c.postId()
+                    + " — " + c.authorUsername() + ": " + c.body());
+        }
+
+        // Create a comment. An idempotency key makes the write safe to retry
+        // after a dropped connection — the retry replays the original response
+        // instead of posting a second comment.
+        var newComment = client.comments().create(
+                postId, profileId, "Thanks for the feedback!", null, java.util.UUID.randomUUID().toString());
         System.out.println("Created: " + newComment.id() + " (status: " + newComment.status() + ")");
 
         // Reply to a comment

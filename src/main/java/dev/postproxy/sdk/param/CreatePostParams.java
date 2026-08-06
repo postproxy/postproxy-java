@@ -14,7 +14,9 @@ public record CreatePostParams(
         Boolean draft,
         String queueId,
         String queuePriority,
-        String profileGroupId
+        String profileGroupId,
+        /** Optional Idempotency-Key: retrying with the same key replays the original response. */
+        @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey
 ) {
     public static Builder builder() {
         return new Builder();
@@ -32,6 +34,7 @@ public record CreatePostParams(
         private String queueId;
         private String queuePriority;
         private String profileGroupId;
+        private String idempotencyKey;
 
         public Builder body(String body) { this.body = body; return this; }
         public Builder profiles(List<String> profiles) { this.profiles = profiles; return this; }
@@ -44,11 +47,12 @@ public record CreatePostParams(
         public Builder queueId(String queueId) { this.queueId = queueId; return this; }
         public Builder queuePriority(String queuePriority) { this.queuePriority = queuePriority; return this; }
         public Builder profileGroupId(String profileGroupId) { this.profileGroupId = profileGroupId; return this; }
+        public Builder idempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; return this; }
 
         public CreatePostParams build() {
             if (body == null) throw new IllegalArgumentException("body is required");
             if (profiles == null || profiles.isEmpty()) throw new IllegalArgumentException("profiles is required");
-            return new CreatePostParams(body, profiles, media, mediaFiles, platforms, thread, scheduledAt, draft, queueId, queuePriority, profileGroupId);
+            return new CreatePostParams(body, profiles, media, mediaFiles, platforms, thread, scheduledAt, draft, queueId, queuePriority, profileGroupId, idempotencyKey);
         }
     }
 }

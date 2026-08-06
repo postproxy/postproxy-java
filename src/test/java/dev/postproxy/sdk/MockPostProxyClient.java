@@ -16,7 +16,7 @@ public class MockPostProxyClient extends PostProxyClient {
     private final ObjectMapper mapper;
     private final List<RecordedRequest> requests = new ArrayList<>();
 
-    public record RecordedRequest(String method, String url, Object body) {}
+    public record RecordedRequest(String method, String url, Object body, String idempotencyKey) {}
 
     public MockPostProxyClient(Object responseBody, int responseStatus, String profileGroupId) {
         super("test-api-key", "https://mock.postproxy.dev", profileGroupId);
@@ -32,47 +32,79 @@ public class MockPostProxyClient extends PostProxyClient {
 
     @Override
     public <T> T get(String path, Map<String, String> queryParams, TypeReference<T> type) {
-        return handle("GET", path, queryParams, null, type);
+        return handle("GET", path, queryParams, null, type, null);
     }
 
     @Override
     public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type) {
-        return handle("POST", path, queryParams, body, type);
+        return handle("POST", path, queryParams, body, type, null);
+    }
+
+    @Override
+    public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
+                      String idempotencyKey) {
+        return handle("POST", path, queryParams, body, type, idempotencyKey);
     }
 
     @Override
     public <T> T patch(String path, Map<String, String> queryParams, Object body, TypeReference<T> type) {
-        return handle("PATCH", path, queryParams, body, type);
+        return handle("PATCH", path, queryParams, body, type, null);
+    }
+
+    @Override
+    public <T> T patch(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
+                       String idempotencyKey) {
+        return handle("PATCH", path, queryParams, body, type, idempotencyKey);
     }
 
     @Override
     public <T> T delete(String path, Map<String, String> queryParams, TypeReference<T> type) {
-        return handle("DELETE", path, queryParams, null, type);
+        return handle("DELETE", path, queryParams, null, type, null);
+    }
+
+    @Override
+    public <T> T delete(String path, Map<String, String> queryParams, TypeReference<T> type,
+                        String idempotencyKey) {
+        return handle("DELETE", path, queryParams, null, type, idempotencyKey);
     }
 
     @Override
     public <T> T postMultipart(String path, Map<String, String> queryParams,
                                 Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type) {
+        return postMultipart(path, queryParams, fields, fileGroups, type, null);
+    }
+
+    @Override
+    public <T> T postMultipart(String path, Map<String, String> queryParams,
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
+                                String idempotencyKey) {
         Map<String, Object> body = new LinkedHashMap<>(fields);
         if (fileGroups != null) {
             body.put("__fileGroups", fileGroups);
         }
-        return handle("POST", path, queryParams, body, type);
+        return handle("POST", path, queryParams, body, type, idempotencyKey);
     }
 
     @Override
     public <T> T patchMultipart(String path, Map<String, String> queryParams,
                                 Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type) {
+        return patchMultipart(path, queryParams, fields, fileGroups, type, null);
+    }
+
+    @Override
+    public <T> T patchMultipart(String path, Map<String, String> queryParams,
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
+                                String idempotencyKey) {
         Map<String, Object> body = new LinkedHashMap<>(fields);
         if (fileGroups != null) {
             body.put("__fileGroups", fileGroups);
         }
-        return handle("PATCH", path, queryParams, body, type);
+        return handle("PATCH", path, queryParams, body, type, idempotencyKey);
     }
 
     @SuppressWarnings("unchecked")
     private <T> T handle(String method, String path, Map<String, String> queryParams,
-                          Object body, TypeReference<T> type) {
+                          Object body, TypeReference<T> type, String idempotencyKey) {
         StringBuilder url = new StringBuilder("https://mock.postproxy.dev").append(path);
         if (queryParams != null && !queryParams.isEmpty()) {
             url.append("?");
@@ -82,7 +114,7 @@ public class MockPostProxyClient extends PostProxyClient {
             }
             url.append(joiner);
         }
-        requests.add(new RecordedRequest(method, url.toString(), body));
+        requests.add(new RecordedRequest(method, url.toString(), body, idempotencyKey));
 
         if (responseStatus == 204) return null;
 
@@ -94,6 +126,7 @@ public class MockPostProxyClient extends PostProxyClient {
                 case 400 -> new BadRequestException(msg, parsed);
                 case 401 -> new AuthenticationException(msg, parsed);
                 case 404 -> new NotFoundException(msg, parsed);
+                case 409 -> new ConflictException(msg, parsed);
                 case 422 -> new ValidationException(msg, parsed);
                 default -> new PostProxyException(msg, responseStatus, parsed);
             };

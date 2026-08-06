@@ -13,7 +13,8 @@ public record InstagramParams(
         @JsonProperty("cover_url") String coverUrl,
         @JsonProperty("audio_name") String audioName,
         @JsonProperty("trial_strategy") Boolean trialStrategy,
-        @JsonProperty("thumb_offset") Integer thumbOffset
+        @JsonProperty("thumb_offset") Integer thumbOffset,
+        @JsonProperty("user_tags") List<InstagramUserTag> userTags
 ) {
     public static Builder builder() {
         return new Builder();
@@ -27,6 +28,7 @@ public record InstagramParams(
         private String audioName;
         private Boolean trialStrategy;
         private Integer thumbOffset;
+        private List<InstagramUserTag> userTags;
 
         public Builder format(InstagramFormat format) { this.format = format; return this; }
         public Builder firstComment(String firstComment) { this.firstComment = firstComment; return this; }
@@ -35,9 +37,10 @@ public record InstagramParams(
         public Builder audioName(String audioName) { this.audioName = audioName; return this; }
         public Builder trialStrategy(Boolean trialStrategy) { this.trialStrategy = trialStrategy; return this; }
         public Builder thumbOffset(Integer thumbOffset) { this.thumbOffset = thumbOffset; return this; }
+        public Builder userTags(List<InstagramUserTag> userTags) { this.userTags = userTags; return this; }
 
         public InstagramParams build() {
-            return new InstagramParams(format, firstComment, collaborators, coverUrl, audioName, trialStrategy, thumbOffset);
+            return new InstagramParams(format, firstComment, collaborators, coverUrl, audioName, trialStrategy, thumbOffset, userTags);
         }
     }
 }

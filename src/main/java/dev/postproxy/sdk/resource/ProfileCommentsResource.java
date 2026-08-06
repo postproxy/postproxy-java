@@ -35,14 +35,22 @@ public class ProfileCommentsResource {
     }
 
     public ProfileComment create(String profileId, String parentId, String text) {
+        return create(profileId, parentId, text, null);
+    }
+
+    public ProfileComment create(String profileId, String parentId, String text, String idempotencyKey) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("parent_id", parentId);
         body.put("text", text);
 
-        return client.post("/api/profiles/" + profileId + "/comments", null, body, new TypeReference<>() {});
+        return client.post("/api/profiles/" + profileId + "/comments", null, body, new TypeReference<>() {}, idempotencyKey);
     }
 
     public AcceptedResponse delete(String profileId, String commentId) {
-        return client.delete("/api/profiles/" + profileId + "/comments/" + commentId, null, new TypeReference<>() {});
+        return delete(profileId, commentId, null);
+    }
+
+    public AcceptedResponse delete(String profileId, String commentId, String idempotencyKey) {
+        return client.delete("/api/profiles/" + profileId + "/comments/" + commentId, null, new TypeReference<>() {}, idempotencyKey);
     }
 }

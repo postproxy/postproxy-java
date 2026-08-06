@@ -94,7 +94,7 @@ public class PostsResource {
         if (params.queueId() != null) body.put("queue_id", params.queueId());
         if (params.queuePriority() != null) body.put("queue_priority", params.queuePriority());
 
-        return client.post("/api/posts", query, body, new TypeReference<>() {});
+        return client.post("/api/posts", query, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     private Post createMultipart(CreatePostParams params, Map<String, String> query) {
@@ -128,7 +128,7 @@ public class PostsResource {
             }
         }
 
-        return client.postMultipart("/api/posts", query, fields, fileGroups, new TypeReference<>() {});
+        return client.postMultipart("/api/posts", query, fields, fileGroups, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     private void addPlatformFields(Map<String, Object> fields, PlatformParams platforms) {
@@ -182,7 +182,7 @@ public class PostsResource {
         if (params.queueId() != null) body.put("queue_id", params.queueId());
         if (params.queuePriority() != null) body.put("queue_priority", params.queuePriority());
 
-        return client.patch("/api/posts/" + id, query, body, new TypeReference<>() {});
+        return client.patch("/api/posts/" + id, query, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     private Post updateMultipart(String id, UpdatePostParams params, Map<String, String> query) {
@@ -216,7 +216,7 @@ public class PostsResource {
             }
         }
 
-        return client.patchMultipart("/api/posts/" + id, query, fields, fileGroups, new TypeReference<>() {});
+        return client.patchMultipart("/api/posts/" + id, query, fields, fileGroups, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     public StatsResponse stats(GetStatsParams params) {
@@ -236,11 +236,15 @@ public class PostsResource {
     }
 
     public Post publishDraft(String id, String profileGroupId) {
+        return publishDraft(id, profileGroupId, null);
+    }
+
+    public Post publishDraft(String id, String profileGroupId, String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
 
-        return client.post("/api/posts/" + id + "/publish", query, null, new TypeReference<>() {});
+        return client.post("/api/posts/" + id + "/publish", query, null, new TypeReference<>() {}, idempotencyKey);
     }
 
     public DeleteResponse delete(String id) {
@@ -252,12 +256,16 @@ public class PostsResource {
     }
 
     public DeleteResponse delete(String id, Boolean deleteOnPlatform, String profileGroupId) {
+        return delete(id, deleteOnPlatform, profileGroupId, null);
+    }
+
+    public DeleteResponse delete(String id, Boolean deleteOnPlatform, String profileGroupId, String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
         if (deleteOnPlatform != null) query.put("delete_on_platform", deleteOnPlatform.toString());
 
-        return client.delete("/api/posts/" + id, query, new TypeReference<>() {});
+        return client.delete("/api/posts/" + id, query, new TypeReference<>() {}, idempotencyKey);
     }
 
     public DeleteOnPlatformResponse deleteOnPlatform(String id) {
@@ -282,7 +290,8 @@ public class PostsResource {
                 "/api/posts/" + id + "/delete_on_platform",
                 query,
                 body.isEmpty() ? null : body,
-                new TypeReference<>() {}
+                new TypeReference<>() {},
+                params != null ? params.idempotencyKey() : null
         );
     }
 }

@@ -35,7 +35,7 @@ public class WebhooksResource {
         body.put("events", params.events());
         if (params.description() != null) body.put("description", params.description());
 
-        return client.post("/api/webhooks", null, body, new TypeReference<>() {});
+        return client.post("/api/webhooks", null, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     public Webhook update(String id, UpdateWebhookParams params) {
@@ -45,11 +45,15 @@ public class WebhooksResource {
         if (params.enabled() != null) body.put("enabled", params.enabled());
         if (params.description() != null) body.put("description", params.description());
 
-        return client.patch("/api/webhooks/" + id, null, body, new TypeReference<>() {});
+        return client.patch("/api/webhooks/" + id, null, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     public DeleteResponse delete(String id) {
-        return client.delete("/api/webhooks/" + id, null, new TypeReference<>() {});
+        return delete(id, null);
+    }
+
+    public DeleteResponse delete(String id, String idempotencyKey) {
+        return client.delete("/api/webhooks/" + id, null, new TypeReference<>() {}, idempotencyKey);
     }
 
     public PaginatedResponse<WebhookDelivery> deliveries(String id) {

@@ -75,6 +75,47 @@ var client = PostProxy.builder("your-api-key")
     .build();
 ```
 
+#### Idempotency
+
+Every write (`POST`/`PUT`/`PATCH`/`DELETE`) sends an `Idempotency-Key` header when you give
+it one. If the connection drops before you see the response, retry with the same key and
+you get the original response back instead of a second post:
+
+```java
+var key = UUID.randomUUID().toString();
+
+var post = client.posts().create(CreatePostParams.builder()
+    .body("Hello")
+    .profiles(List.of("profile-id"))
+    .idempotencyKey(key)
+    .build());
+
+// Retrying the same call with the same key replays the original response.
+```
+
+Methods that take a params record expose `idempotencyKey(...)` on the builder; the rest
+take it as a trailing argument:
+
+```java
+client.comments().create("post-id", "profile-id", "Nice!", null, key);
+client.profiles().backfillPosts("profile-id", "2025-01-01", null, key);
+```
+
+Generate a fresh key per logical operation — a UUID is ideal. Keys are scoped to your
+account and may be up to 255 characters. The SDK never generates keys or retries for you.
+
+| Situation | Result |
+|---|---|
+| First request with the key | Runs normally |
+| Retry after a success | Original status and body replayed |
+| Retry while the first is still running | `ConflictException` (409) — wait and retry |
+| Same key, different request body | `ValidationException` (422) |
+| Retry after an error response | Runs normally — errors are not replayed |
+
+Only successful (`2xx`) responses are stored, so a request that failed validation or hit a
+quota leaves the key free — fix the payload and retry with the same key. Stored responses
+are kept for **24 hours**. Requests without a key are unaffected.
+
 ### Posts
 
 ```java
@@ -447,7 +488,53 @@ var message = client.comments().privateReply(
     "post-id", "comment-id", "profile-id",
     "Thanks for your comment — DM-ing you the details.");
 System.out.println(message.id() + " in chat " + message.chatId());
+
+// Filter by when PostProxy received the comment (created_at, not posted_at).
+// A bare date means that date's start of day. Applies to top-level comments —
+// one in range brings its full replies list with it.
+var recent = client.comments().list("post-id", "profile-id", null, null,
+    "2026-03-25", "2026-03-26T12:00:00Z");
 ```
+
+#### Comments across posts
+
+`comments().listAll(...)` returns comments spanning every post in the profile group in one
+request — the comments counterpart to `posts().stats(...)`. Every filter is optional.
+
+**This list is flat.** Unlike the per-post list, replies are not nested: every comment,
+top-level or reply, is its own entry linked to its parent by `parentExternalId()`, so
+`total()` counts every comment and paging is exact. Entries are `BulkComment`, which adds
+`postId()`, `profileId()`, and `platform()`.
+
+```java
+import dev.postproxy.sdk.model.BulkComment;
+
+var all = client.comments().listAll(
+    List.of("post-1", "post-2"),           // omit (null) for every post in scope
+    List.of("instagram", "prof-abc"),      // profile IDs or network names, mixed
+    "2026-03-25",                          // from
+    null,                                  // to
+    null,                                  // page
+    50,                                    // perPage (max 100)
+    null);                                 // profileGroupId
+
+for (var c : all.data()) {
+    // Each entry says where it came from, so you can act on it with the
+    // post-scoped methods above.
+    System.out.println(c.platform().getValue() + " " + c.postId() + " " + c.profileId() + ": " + c.body());
+
+    if (c.parentExternalId() != null) {
+        System.out.println("  ↳ reply to " + c.parentExternalId());
+    }
+}
+
+// Reply to one of them
+var first = all.data().get(0);
+client.comments().create(first.postId(), first.profileId(), "Thanks!", first.id());
+```
+
+Unknown or out-of-scope IDs in the post and profile lists are ignored rather than erroring.
+Results are ordered newest first by receipt time.
 
 ### Direct Messages
 
@@ -651,6 +738,83 @@ var last = bsky.data().records().get(bsky.data().records().size() - 1);
 System.out.println(last.stats().get("followersCount"));
 ```
 
+Every stats record (post stats and profile stats alike) carries `rawStats()` alongside the
+normalized `stats()`, exposing each metric under its **original platform name**:
+
+```java
+var stats = client.posts().stats(GetStatsParams.builder().postIds(List.of("post-id")).build());
+var record = stats.data().get("post-id").platforms().get(0).records().get(0);
+
+System.out.println(record.stats().get("impressions"));          // normalized
+System.out.println(record.rawStats().get("views"));             // Instagram's own name
+System.out.println(record.rawStats().get("impression_count"));  // Twitter/X's own name
+```
+
+LinkedIn post stats now normalize `likes`, `comments`, `shares`, and `clicks` alongside
+`impressions` — previously only `impressions` was normalized.
+
+#### Post syncs & backfill
+
+PostProxy mirrors posts published natively on a platform into your account. Every one of
+those pulls is recorded as a **post sync**: the one fired when the profile connects, the
+recurring poll, and any backfill you start.
+
+```java
+import dev.postproxy.sdk.model.PostSyncStatus;
+import dev.postproxy.sdk.model.PostSyncTrigger;
+
+// Start a backfill — walks the feed backwards from the newest post in batches
+// of 25 until it reaches `from` or the platform stops returning posts.
+var sync = client.profiles().backfillPosts("profile-id", "2025-01-01");
+System.out.println(sync.id() + " " + sync.status().getValue()); // "sync456def pending"
+
+// Poll it to completion — finished when the status is COMPLETED or FAILED
+var run = client.profiles().postSync("profile-id", sync.id());
+System.out.println(run.postsImported() + " of " + run.postsSeen() + ", back to " + run.oldestPostedAt());
+
+// List recent runs (kept for 30 days), newest first
+var runs = client.profiles().postSyncs("profile-id",
+    PostSyncTrigger.BACKFILL,     // CONNECT | SCHEDULED | BACKFILL
+    PostSyncStatus.COMPLETED,     // PENDING | RUNNING | COMPLETED | FAILED
+    null, 25, null);
+```
+
+| `PostSync` accessor | Description |
+|---|---|
+| `id()` | Sync identifier |
+| `profileId()` | Profile this run belongs to |
+| `kind()` | Always `posts` today |
+| `trigger()` | `CONNECT`, `SCHEDULED`, or `BACKFILL` |
+| `status()` | `PENDING`, `RUNNING`, `COMPLETED`, or `FAILED` |
+| `startedAt()` / `completedAt()` | ISO 8601 timestamps, null until set |
+| `postsSeen()` | Posts the platform returned across the run |
+| `postsImported()` | Posts that were **new** and got created |
+| `backfillFrom()` | The date floor requested; null for `CONNECT`/`SCHEDULED` |
+| `oldestPostedAt()` | Publish date of the oldest post the run reached |
+| `error()` | Platform error message when `status()` is `FAILED` |
+| `createdAt()` | ISO 8601 timestamp |
+
+**How far back a backfill reaches depends on the platform's API**, not on PostProxy: where
+history is pageable we follow it, otherwise the run ends early with whatever it got and
+still reports `COMPLETED`.
+
+Only one backfill runs per profile at a time — starting a second throws `ConflictException`
+carrying the running one's id:
+
+```java
+try {
+    client.profiles().backfillPosts("profile-id", "2025-01-01");
+} catch (ConflictException e) {
+    var runningId = e.getResponse().get("profile_sync_id");
+    // Poll the run that's already going.
+}
+```
+
+Posts you already have are skipped, so overlapping backfills are safe. Imported posts
+behave exactly like ones the poll picks up (`source: "imported"`, `post.imported` webhook),
+but a backfill's follow-up work is queued at a lower priority so a deep run can't slow down
+publishing.
+
 ### Profile Groups
 
 ```java
@@ -721,7 +885,10 @@ Exception hierarchy:
 | `AuthenticationException` | 401 |
 | `BadRequestException` | 400 |
 | `NotFoundException` | 404 |
+| `ConflictException` | 409 — duplicate submission (`duplicate_post_id`), a backfill already running (`profile_sync_id`), or an in-flight `Idempotency-Key` |
 | `ValidationException` | 422 |
+
+A `429` (posting rate limit reached) surfaces as the base `PostProxyException`.
 
 ## Types
 
@@ -747,6 +914,8 @@ Key types:
 | `PlatformResult` | platform, status, params, error, attemptedAt, insights |
 | `ListResponse<T>` | data |
 | `Comment` | id, externalId, body, status, authorUsername, authorAvatarUrl, authorExternalId, metadata, parentExternalId, likeCount, isHidden, permalink, platformData, attachments, postedAt, createdAt, replies |
+| `BulkComment` | Every `Comment` accessor except `replies`, plus postId, profileId, platform — returned by `comments().listAll(...)` |
+| `PostSync` | id, profileId, kind, trigger, status, startedAt, completedAt, postsSeen, postsImported, backfillFrom, oldestPostedAt, error, createdAt |
 | `Chat` | id, profileId, platform, participantExternalId, participantUsername, participantName, participantAvatarUrl, externalConversationId, lastInboundAt, lastOutboundAt, lastMessageAt, metadata, archived, createdAt |
 | `Message` | id, chatId, externalId, direction, body, status, tag, externalCommentId, errorMessage, platformData, externalPostedAt, externalDeliveredAt, externalReadAt, externalEditedAt, replyToExternalId, replyMarkup, externalDeletedAt, reactions, attachments, isUnsupported, createdAt |
 | `Attachment` | id, type, url, status, externalId |
@@ -756,7 +925,7 @@ Key types:
 | `StatsResponse` | data (Map&lt;String, PostStats&gt;) |
 | `PostStats` | platforms |
 | `PlatformStats` | profileId, platform, records |
-| `StatsRecord` | stats (Map), recordedAt |
+| `StatsRecord` | stats (Map), rawStats (Map, metrics under their platform-native names), recordedAt |
 | `Queue` | id, name, description, timezone, enabled, jitter, profileGroupId, timeslots, postsCount |
 | `Timeslot` | id, day, time |
 | `NextSlotResponse` | nextSlot |
@@ -766,7 +935,8 @@ Key types:
 | Type | Platform |
 |---|---|
 | `FacebookParams` | format (`post`, `story`), firstComment, pageId |
-| `InstagramParams` | format (`post`, `reel`, `story`), firstComment, collaborators, coverUrl, audioName, trialStrategy, thumbOffset |
+| `InstagramParams` | format (`post`, `reel`, `story`), firstComment, collaborators, coverUrl, audioName, trialStrategy, thumbOffset, userTags |
+| `InstagramUserTag` | username, x, y, mediaIndex |
 | `TikTokParams` | format (`video`, `image`), privacyStatus, photoCoverIndex, autoAddMusic, madeWithAi, disableComment, disableDuet, disableStitch, brandContentToggle, brandOrganicToggle |
 | `LinkedInParams` | format (`post`), organizationId |
 | `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl, madeForKids, tags, categoryId, containsSyntheticMedia |
@@ -775,6 +945,35 @@ Key types:
 | `TwitterParams` | format (`post`, `poll`), pollOptions (2-4 choices, max 25 chars each; required for `poll`), pollDurationMinutes (5-10080; required for `poll`) |
 | `BlueskyParams` | format (`post`) |
 | `TelegramParams` | format (`post`), chatId (required), parseMode (`HTML`, `MarkdownV2`), disableLinkPreview, disableNotification |
+
+#### Instagram user tags
+
+Tag public Instagram accounts in a post — feed post, reel, or story:
+
+```java
+import dev.postproxy.sdk.param.InstagramUserTag;
+
+var params = PlatformParams.builder()
+    .instagram(InstagramParams.builder()
+        .format(InstagramFormat.POST)
+        .userTags(List.of(
+            InstagramUserTag.of("natgeo", 0.5, 0.4),      // slide 0
+            InstagramUserTag.of("nasa", 0.2, 0.8, 1),     // slide 1
+            InstagramUserTag.of("spacex", 2)))            // video slide — username only
+        .build())
+    .build();
+```
+
+- **Images require `x` and `y`** — floats `0.0`–`1.0` measured from the top-left corner.
+- **Reels and video slides** are tagged by username only; coordinates are ignored and dropped.
+- **Stories** accept coordinates but don't need them.
+- `mediaIndex` picks the carousel slide (0-based, defaults to `0`, video slides included).
+- A leading `@` on a username is stripped for you.
+
+Coordinates outside `0.0`–`1.0`, a `mediaIndex` past the last media item, or an image tag
+missing `x`/`y` are rejected with a `ValidationException` naming the offending entry.
+Accounts that are private or have tagging turned off are silently skipped by Instagram at
+publish time.
 
 Wrap them in `PlatformParams` when passing to `posts().create()`. Telegram requires a `chatId` per post — list channels with `client.profiles().placements(profileId)`.
 

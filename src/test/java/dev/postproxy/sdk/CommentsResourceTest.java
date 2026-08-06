@@ -239,4 +239,85 @@ class CommentsResourceTest {
         var body = (Map<String, Object>) req.body();
         assertEquals("DM-ing you the details.", body.get("text"));
     }
+
+    @Test
+    void listAcceptsDateFilters() {
+        var mock = new MockPostProxyClient(
+                Map.of("total", 0, "page", 0, "per_page", 20, "data", List.of()), 200, null);
+        var comments = new CommentsResource(mock);
+
+        comments.list("post-1", "prof-1", null, null, "2026-03-25", "2026-03-26T12:00:00Z");
+
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("from=2026-03-25"));
+        assertTrue(url.contains("to=2026-03-26T12:00:00Z"));
+    }
+
+    @Test
+    void listsCommentsAcrossPosts() {
+        Map<String, Object> bulk = Map.ofEntries(
+                Map.entry("post_id", "abc123xyz"),
+                Map.entry("profile_id", "prof456"),
+                Map.entry("platform", "instagram"),
+                Map.entry("id", "cmt_abc123"),
+                Map.entry("body", "Great post!"),
+                Map.entry("like_count", 3),
+                Map.entry("created_at", "2026-03-25T10:01:00Z")
+        );
+        Map<String, Object> reply = Map.ofEntries(
+                Map.entry("post_id", "abc123xyz"),
+                Map.entry("profile_id", "prof456"),
+                Map.entry("platform", "instagram"),
+                Map.entry("id", "cmt_def456"),
+                Map.entry("body", "Thanks!"),
+                Map.entry("parent_external_id", "17858893269123456"),
+                Map.entry("like_count", 1),
+                Map.entry("created_at", "2026-03-25T10:05:00Z")
+        );
+        var mock = new MockPostProxyClient(
+                Map.of("total", 2, "page", 0, "per_page", 50, "data", List.of(bulk, reply)), 200, null);
+        var comments = new CommentsResource(mock);
+
+        var result = comments.listAll(
+                List.of("abc123xyz", "def456uvw"), List.of("instagram", "prof456"),
+                "2026-03-25", null, null, 50, null);
+
+        assertEquals(2, result.total());
+        assertEquals("abc123xyz", result.data().get(0).postId());
+        assertEquals("prof456", result.data().get(0).profileId());
+        assertEquals("instagram", result.data().get(0).platform().getValue());
+        // Flat: the reply is its own entry, linked by parent_external_id.
+        assertEquals("17858893269123456", result.data().get(1).parentExternalId());
+
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("/api/comments"));
+        assertTrue(url.contains("post_ids=abc123xyz,def456uvw"));
+        assertTrue(url.contains("profiles=instagram,prof456"));
+        assertTrue(url.contains("per_page=50"));
+    }
+
+    @Test
+    void listsCommentsAcrossPostsWithoutFilters() {
+        var mock = new MockPostProxyClient(
+                Map.of("total", 0, "page", 0, "per_page", 20, "data", List.of()), 200, null);
+        var comments = new CommentsResource(mock);
+
+        comments.listAll();
+
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("/api/comments"));
+        assertFalse(url.contains("profiles="));
+        assertFalse(url.contains("post_ids="));
+    }
+
+    @Test
+    void sendsIdempotencyKeyWhenCreatingAComment() {
+        var mock = new MockPostProxyClient(
+                Map.of("id", "cmt_abc123", "body", "Nice", "created_at", "2026-03-25T10:01:00Z"), 200, null);
+        var comments = new CommentsResource(mock);
+
+        comments.create("post-1", "prof-1", "Nice", null, "key-42");
+
+        assertEquals("key-42", mock.getRequests().get(0).idempotencyKey());
+    }
 }

@@ -4,7 +4,9 @@ public record CreateChatParams(
         String participantExternalId,
         String participantUsername,
         String participantName,
-        String profileGroupId
+        String profileGroupId,
+        /** Optional Idempotency-Key: retrying with the same key replays the original response. */
+        @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey
 ) {
     public static Builder builder(String participantExternalId) {
         return new Builder(participantExternalId);
@@ -15,6 +17,7 @@ public record CreateChatParams(
         private String participantUsername;
         private String participantName;
         private String profileGroupId;
+        private String idempotencyKey;
 
         private Builder(String participantExternalId) {
             this.participantExternalId = participantExternalId;
@@ -23,9 +26,10 @@ public record CreateChatParams(
         public Builder participantUsername(String participantUsername) { this.participantUsername = participantUsername; return this; }
         public Builder participantName(String participantName) { this.participantName = participantName; return this; }
         public Builder profileGroupId(String profileGroupId) { this.profileGroupId = profileGroupId; return this; }
+        public Builder idempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; return this; }
 
         public CreateChatParams build() {
-            return new CreateChatParams(participantExternalId, participantUsername, participantName, profileGroupId);
+            return new CreateChatParams(participantExternalId, participantUsername, participantName, profileGroupId, idempotencyKey);
         }
     }
 }

@@ -53,7 +53,7 @@ public class ChatsResource {
         if (params.participantUsername() != null) body.put("participant_username", params.participantUsername());
         if (params.participantName() != null) body.put("participant_name", params.participantName());
 
-        return client.post("/api/profiles/" + profileId + "/chats", query, body, new TypeReference<>() {});
+        return client.post("/api/profiles/" + profileId + "/chats", query, body, new TypeReference<>() {}, params.idempotencyKey());
     }
 
     public Chat get(String chatId) {
@@ -73,11 +73,15 @@ public class ChatsResource {
     }
 
     public Chat archive(String chatId, String profileGroupId) {
+        return archive(chatId, profileGroupId, null);
+    }
+
+    public Chat archive(String chatId, String profileGroupId, String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
 
-        return client.post("/api/chats/" + chatId + "/archive", query, null, new TypeReference<>() {});
+        return client.post("/api/chats/" + chatId + "/archive", query, null, new TypeReference<>() {}, idempotencyKey);
     }
 
     public Chat unarchive(String chatId) {
@@ -85,10 +89,14 @@ public class ChatsResource {
     }
 
     public Chat unarchive(String chatId, String profileGroupId) {
+        return unarchive(chatId, profileGroupId, null);
+    }
+
+    public Chat unarchive(String chatId, String profileGroupId, String idempotencyKey) {
         Map<String, String> query = new LinkedHashMap<>();
         String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
         if (pgId != null) query.put("profile_group_id", pgId);
 
-        return client.delete("/api/chats/" + chatId + "/archive", query, new TypeReference<>() {});
+        return client.delete("/api/chats/" + chatId + "/archive", query, new TypeReference<>() {}, idempotencyKey);
     }
 }

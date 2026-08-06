@@ -274,6 +274,7 @@ class PostsResourceTest {
                                     "records", List.of(
                                             Map.of(
                                                     "stats", Map.of("impressions", 1200, "likes", 85),
+                                                    "raw_stats", Map.of("views", 1200, "like_count", 85),
                                                     "recorded_at", "2026-02-20T12:00:00Z"
                                             ),
                                             Map.of(
@@ -462,5 +463,36 @@ class PostsResourceTest {
         assertEquals("processed", post.media().get(0).status().getValue());
         assertEquals(1, post.thread().size());
         assertEquals("Reply", post.thread().get(0).body());
+    }
+
+    @Test
+    void statsRecordsCarryRawStats() {
+        var mock = new MockPostProxyClient(MOCK_STATS, 200, null);
+        var posts = new PostsResource(mock);
+
+        var result = posts.stats(GetStatsParams.builder().postIds(List.of("post-1")).build());
+        var records = result.data().get("post-1").platforms().get(0).records();
+
+        // raw_stats carries every metric under its original platform name.
+        assertEquals(1200, records.get(0).rawStats().get("views"));
+        // A record without raw_stats deserializes with a null map rather than failing.
+        assertNull(records.get(1).rawStats());
+    }
+
+    @Test
+    void instagramParamsCarryUserTags() {
+        var params = dev.postproxy.sdk.param.InstagramParams.builder()
+                .format(dev.postproxy.sdk.model.InstagramFormat.POST)
+                .userTags(List.of(
+                        dev.postproxy.sdk.param.InstagramUserTag.of("natgeo", 0.5, 0.4),
+                        dev.postproxy.sdk.param.InstagramUserTag.of("nasa", 0.2, 0.8, 1),
+                        // Video slides are tagged by username only.
+                        dev.postproxy.sdk.param.InstagramUserTag.of("spacex", 2)))
+                .build();
+
+        assertEquals(3, params.userTags().size());
+        assertEquals(0.5, params.userTags().get(0).x());
+        assertNull(params.userTags().get(2).x());
+        assertEquals(2, params.userTags().get(2).mediaIndex());
     }
 }

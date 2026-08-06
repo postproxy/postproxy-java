@@ -24,14 +24,22 @@ public class ProfileGroupsResource {
     }
 
     public ProfileGroup create(String name) {
+        return create(name, null);
+    }
+
+    public ProfileGroup create(String name, String idempotencyKey) {
         Map<String, Object> body = Map.of(
                 "profile_group", Map.of("name", name)
         );
-        return client.post("/api/profile_groups", null, body, new TypeReference<>() {});
+        return client.post("/api/profile_groups", null, body, new TypeReference<>() {}, idempotencyKey);
     }
 
     public DeleteResponse delete(String id) {
-        return client.delete("/api/profile_groups/" + id, null, new TypeReference<>() {});
+        return delete(id, null);
+    }
+
+    public DeleteResponse delete(String id, String idempotencyKey) {
+        return client.delete("/api/profile_groups/" + id, null, new TypeReference<>() {}, idempotencyKey);
     }
 
     /**

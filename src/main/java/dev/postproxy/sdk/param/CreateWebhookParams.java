@@ -5,7 +5,9 @@ import java.util.List;
 public record CreateWebhookParams(
         String url,
         List<String> events,
-        String description
+        String description,
+        /** Optional Idempotency-Key: retrying with the same key replays the original response. */
+        @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey
 ) {
     public static Builder builder() {
         return new Builder();
@@ -15,15 +17,17 @@ public record CreateWebhookParams(
         private String url;
         private List<String> events;
         private String description;
+        private String idempotencyKey;
 
         public Builder url(String url) { this.url = url; return this; }
         public Builder events(List<String> events) { this.events = events; return this; }
         public Builder description(String description) { this.description = description; return this; }
+        public Builder idempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; return this; }
 
         public CreateWebhookParams build() {
             if (url == null) throw new IllegalArgumentException("url is required");
             if (events == null || events.isEmpty()) throw new IllegalArgumentException("events is required");
-            return new CreateWebhookParams(url, events, description);
+            return new CreateWebhookParams(url, events, description, idempotencyKey);
         }
     }
 }

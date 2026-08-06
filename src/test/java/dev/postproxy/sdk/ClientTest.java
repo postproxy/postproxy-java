@@ -70,4 +70,49 @@ class ClientTest {
                 .body("test").profiles(List.of("profile-1")).build();
         assertThrows(BadRequestException.class, () -> posts.create(params));
     }
+
+    @Test
+    void throwsConflictExceptionOn409() {
+        var mock = new MockPostProxyClient(
+                Map.of("error", "Duplicate post", "duplicate_post_id", "post-1"), 409, null);
+        var posts = new dev.postproxy.sdk.resource.PostsResource(mock);
+
+        var e = assertThrows(dev.postproxy.sdk.exception.ConflictException.class,
+                () -> posts.create(dev.postproxy.sdk.param.CreatePostParams.builder()
+                        .body("hello")
+                        .profiles(java.util.List.of("prof-1"))
+                        .build()));
+
+        assertEquals(409, e.getStatusCode());
+        assertEquals("post-1", e.getResponse().get("duplicate_post_id"));
+    }
+
+    @Test
+    void sendsIdempotencyKeyFromParams() {
+        var mock = new MockPostProxyClient(
+                Map.of("id", "post-1", "body", "hello", "created_at", "2026-08-06T00:00:00Z"), 200, null);
+        var posts = new dev.postproxy.sdk.resource.PostsResource(mock);
+
+        posts.create(dev.postproxy.sdk.param.CreatePostParams.builder()
+                .body("hello")
+                .profiles(java.util.List.of("prof-1"))
+                .idempotencyKey("3f8b1c94-6a2d-4f0e-9d31-7c5e2a8b4f10")
+                .build());
+
+        assertEquals("3f8b1c94-6a2d-4f0e-9d31-7c5e2a8b4f10", mock.getRequests().get(0).idempotencyKey());
+    }
+
+    @Test
+    void omitsIdempotencyKeyByDefault() {
+        var mock = new MockPostProxyClient(
+                Map.of("id", "post-1", "body", "hello", "created_at", "2026-08-06T00:00:00Z"), 200, null);
+        var posts = new dev.postproxy.sdk.resource.PostsResource(mock);
+
+        posts.create(dev.postproxy.sdk.param.CreatePostParams.builder()
+                .body("hello")
+                .profiles(java.util.List.of("prof-1"))
+                .build());
+
+        assertNull(mock.getRequests().get(0).idempotencyKey());
+    }
 }

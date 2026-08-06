@@ -9,7 +9,9 @@ public record UpdateQueueParams(
         String timezone,
         Boolean enabled,
         Integer jitter,
-        List<Map<String, Object>> timeslots
+        List<Map<String, Object>> timeslots,
+        /** Optional Idempotency-Key: retrying with the same key replays the original response. */
+        @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey
 ) {
     public static Builder builder() {
         return new Builder();
@@ -22,6 +24,7 @@ public record UpdateQueueParams(
         private Boolean enabled;
         private Integer jitter;
         private List<Map<String, Object>> timeslots;
+        private String idempotencyKey;
 
         public Builder name(String name) { this.name = name; return this; }
         public Builder description(String description) { this.description = description; return this; }
@@ -29,9 +32,10 @@ public record UpdateQueueParams(
         public Builder enabled(Boolean enabled) { this.enabled = enabled; return this; }
         public Builder jitter(Integer jitter) { this.jitter = jitter; return this; }
         public Builder timeslots(List<Map<String, Object>> timeslots) { this.timeslots = timeslots; return this; }
+        public Builder idempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; return this; }
 
         public UpdateQueueParams build() {
-            return new UpdateQueueParams(name, description, timezone, enabled, jitter, timeslots);
+            return new UpdateQueueParams(name, description, timezone, enabled, jitter, timeslots, idempotencyKey);
         }
     }
 }
