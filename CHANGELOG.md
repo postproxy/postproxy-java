@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.13.0] - 2026-08-17
+
+### Added
+
+- **Interactive DMs on Facebook and Instagram.** `SendMessageParams` gained **`quickReplies`** (up to 13 tappable chips above the participant's composer, gone once tapped — each `title` + `payload`, typed as the new `QuickReply` record) and **`buttons`** (up to 3 attached to the message, typed as `MessageButton` with `MessageButton.webUrl(title, url)` / `MessageButton.postback(title, payload)` factories). An optional **`card`** (`MessageCard`: `subtitle`, `imageUrl`, `defaultAction` as `CardDefaultAction`, with a `webUrl(url)` factory) fills in the rest of the card carrying `buttons`, and requires them. Meta's equivalent of what Telegram has had via `replyMarkup`.
+- **`Message.tappedAction()`** — set on inbound messages created by a tap, typed as the new `TappedAction` record (`kind`, `payload`, `title`) with `KIND_QUICK_REPLY` / `KIND_POSTBACK` / `KIND_CALLBACK_QUERY` constants. Present on the `message.*` webhook payloads too, so you no longer dig through `platformData` for the payload you set. Derived rather than stored, so it also resolves for taps recorded earlier, including Instagram ice-breaker taps and Telegram callback queries (`KIND_CALLBACK_QUERY` — the one part of this that isn't Meta-only).
+- `Message.quickReplies()`, `Message.buttons()`, and `Message.card()`, echoing back what was sent.
+- Quick-replies and buttons examples in `examples/ManageMessages.java` and the README's Direct Messages section.
+
+### Notes
+
+- Buttons are delivered as a Meta generic template and your `body` becomes its element title, so **`body` is capped at 80 characters when buttons are present** — Meta's limit, not ours; longer text is rejected with a `422` naming the length. Buttons cannot be combined with media.
+- **Instagram is stricter than Messenger**: it delivers quick replies only on a plain-text message, so `quickReplies` with media or with `buttons` returns `422` on Instagram while both are accepted on Facebook.
+- Meta-only — `quickReplies` / `buttons` / `card` return `422` on Telegram and Bluesky chats, where `replyMarkup` remains the Telegram equivalent.
+- Validation is server-side and names the offending index (e.g. `buttons[1].url must be an https:// URL`), surfacing as the usual exception for a `422`. The SDK does not duplicate the limits.
+- The new params are sent on the JSON path only. To combine quick replies with an attachment, pass `media` as a hosted URL rather than uploading via `mediaFiles`.
+- `Message` gained four record components. Source-compatible for accessor callers; only direct `new Message(...)` construction is affected.
+
 ## [1.12.0] - 2026-08-06
 
 ### Added

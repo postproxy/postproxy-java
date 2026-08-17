@@ -62,6 +62,9 @@ public class MessagesResource {
         if (params.tag() != null) body.put("tag", params.tag());
         if (params.replyToExternalId() != null) body.put("reply_to_external_id", params.replyToExternalId());
         if (params.replyMarkup() != null) body.put("reply_markup", params.replyMarkup());
+        if (params.quickReplies() != null) body.put("quick_replies", params.quickReplies());
+        if (params.buttons() != null) body.put("buttons", params.buttons());
+        if (params.card() != null) body.put("card", params.card());
 
         return client.post("/api/chats/" + chatId + "/messages", query, body, new TypeReference<>() {}, params.idempotencyKey());
     }

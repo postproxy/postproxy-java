@@ -615,6 +615,67 @@ client.messages().react(sent.id(), ReactParams.builder().reaction("love").build(
 client.messages().unreact(sent.id());
 ```
 
+#### Quick replies and buttons (Facebook & Instagram)
+
+Meta's two interactive primitives. **Quick replies** are chips above the participant's
+composer that disappear once tapped; **buttons** are attached to the message and stay in
+the thread. Telegram's equivalent is `replyMarkup` — passing `quickReplies` or `buttons` on
+a Telegram or Bluesky chat returns `422`.
+
+```java
+// Quick replies — up to 13. title ≤ 20 chars, payload ≤ 1000.
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .body("What can I help with?")
+    .quickReplies(List.of(
+        new QuickReply("Track order", "TRACK"),
+        new QuickReply("Talk to support", "HELP")))
+    .build());
+
+// Buttons — up to 3, each either web_url or postback. card is optional and
+// requires buttons.
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .body("Your order shipped")
+    .buttons(List.of(
+        MessageButton.webUrl("Track", "https://shop.example.com/o/123"),
+        MessageButton.postback("Cancel", "CANCEL:123")))
+    .card(new MessageCard(
+        "Arriving Friday",
+        "https://cdn.example.com/shoe.png",
+        CardDefaultAction.webUrl("https://shop.example.com/o/123")))
+    .build());
+```
+
+Buttons are delivered as a Meta generic template and your `body` becomes the template's
+element title — so **`body` is capped at 80 characters when buttons are present**. That is
+Meta's limit, not PostProxy's, and a longer body is rejected with a `422` naming the
+length. Buttons cannot be combined with media. Instagram is stricter than Messenger: it
+delivers quick replies only on a plain-text message, so `quickReplies` with media or with
+`buttons` returns `422` on Instagram while both are accepted on Facebook.
+
+Validation happens server-side and names the offending index — `buttons[1].url must be an
+https:// URL` — surfacing as the SDK's usual exception for a `422`.
+
+> The new params are sent on the JSON path only. To combine quick replies with an
+> attachment, pass `media` as a hosted URL rather than uploading via `mediaFiles`.
+
+A tap comes back as an **inbound message** carrying `tappedAction`:
+
+```java
+var inbound = client.messages().list(chat.id(), ListMessagesParams.builder()
+    .direction(MessageDirection.INBOUND).build());
+for (var msg : inbound.data()) {
+    if (msg.tappedAction() != null) {
+        // TappedAction.KIND_QUICK_REPLY / KIND_POSTBACK / KIND_CALLBACK_QUERY
+        System.out.println(msg.tappedAction().kind() + ": " + msg.tappedAction().payload());
+    }
+}
+```
+
+Subscribe to `message.received` to react to taps as they happen — the same field is on the
+webhook payload. `tappedAction` is derived rather than stored, so it also resolves for taps
+recorded before PostProxy exposed it, including Instagram ice-breaker taps and Telegram
+callback queries (`KIND_CALLBACK_QUERY`). A tap also opens the 24h window.
+
 ### Profile comments (Google Business reviews)
 
 Profile-level comments expose Google Business reviews and replies. Reviews are user-generated — the SDK lets you list/get them and reply to or delete your own replies. Reviews sync twice daily.
@@ -917,7 +978,12 @@ Key types:
 | `BulkComment` | Every `Comment` accessor except `replies`, plus postId, profileId, platform — returned by `comments().listAll(...)` |
 | `PostSync` | id, profileId, kind, trigger, status, startedAt, completedAt, postsSeen, postsImported, backfillFrom, oldestPostedAt, error, createdAt |
 | `Chat` | id, profileId, platform, participantExternalId, participantUsername, participantName, participantAvatarUrl, externalConversationId, lastInboundAt, lastOutboundAt, lastMessageAt, metadata, archived, createdAt |
-| `Message` | id, chatId, externalId, direction, body, status, tag, externalCommentId, errorMessage, platformData, externalPostedAt, externalDeliveredAt, externalReadAt, externalEditedAt, replyToExternalId, replyMarkup, externalDeletedAt, reactions, attachments, isUnsupported, createdAt |
+| `Message` | id, chatId, externalId, direction, body, status, tag, externalCommentId, errorMessage, platformData, externalPostedAt, externalDeliveredAt, externalReadAt, externalEditedAt, replyToExternalId, replyMarkup, quickReplies, buttons, card, tappedAction, externalDeletedAt, reactions, attachments, isUnsupported, createdAt |
+| `QuickReply` | contentType, title, payload |
+| `MessageButton` | type, title, url, payload — with `webUrl(title, url)` / `postback(title, payload)` factories |
+| `MessageCard` | subtitle, imageUrl, defaultAction |
+| `CardDefaultAction` | type, url — with a `webUrl(url)` factory |
+| `TappedAction` | kind, payload, title |
 | `Attachment` | id, type, url, status, externalId |
 | `Reaction` | senderExternalId, emoji, reaction, at |
 | `AcceptedResponse` | accepted |

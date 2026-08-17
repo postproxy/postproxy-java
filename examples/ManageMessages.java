@@ -1,6 +1,9 @@
 import dev.postproxy.sdk.PostProxy;
 import dev.postproxy.sdk.model.IceBreaker;
+import dev.postproxy.sdk.model.MessageButton;
+import dev.postproxy.sdk.model.MessageCard;
 import dev.postproxy.sdk.model.MessageDirection;
+import dev.postproxy.sdk.model.QuickReply;
 import dev.postproxy.sdk.param.CreateChatParams;
 import dev.postproxy.sdk.param.EditMessageParams;
 import dev.postproxy.sdk.param.ListMessagesParams;
@@ -69,6 +72,34 @@ public class ManageMessages {
         client.messages().send(chat.id(), SendMessageParams.builder()
                 .media(List.of("https://cdn.example.com/photo.png"))
                 .build());
+
+        // Quick replies — tappable chips above the composer, gone once tapped.
+        // Facebook & Instagram only; up to 13.
+        client.messages().send(chat.id(), SendMessageParams.builder()
+                .body("What can I help with?")
+                .quickReplies(List.of(
+                        new QuickReply("Track order", "TRACK"),
+                        new QuickReply("Talk to support", "HELP")))
+                .build());
+
+        // Buttons — attached to the message and stay in the thread. Up to 3, and
+        // body is capped at 80 characters when buttons are present (Meta's limit).
+        // card adds subtitle / image / tap-through to the same card.
+        client.messages().send(chat.id(), SendMessageParams.builder()
+                .body("Your order shipped")
+                .buttons(List.of(
+                        MessageButton.webUrl("Track", "https://shop.example.com/o/123"),
+                        MessageButton.postback("Cancel", "CANCEL:123")))
+                .card(new MessageCard("Arriving Friday", "https://cdn.example.com/shoe.png", null))
+                .build());
+
+        // A tap comes back as an inbound message carrying tappedAction.
+        for (var m : client.messages().list(chat.id(), ListMessagesParams.builder()
+                .direction(MessageDirection.INBOUND).build()).data()) {
+            if (m.tappedAction() != null) {
+                System.out.println("  tapped " + m.tappedAction().kind() + ": " + m.tappedAction().payload());
+            }
+        }
 
         // React / unreact (Facebook & Instagram)
         client.messages().react(sent.id(), ReactParams.builder().reaction("love").build());

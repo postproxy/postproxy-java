@@ -1,7 +1,12 @@
 package dev.postproxy.sdk;
 
+import dev.postproxy.sdk.model.CardDefaultAction;
+import dev.postproxy.sdk.model.MessageButton;
+import dev.postproxy.sdk.model.MessageCard;
 import dev.postproxy.sdk.model.MessageDirection;
 import dev.postproxy.sdk.model.MessageStatus;
+import dev.postproxy.sdk.model.QuickReply;
+import dev.postproxy.sdk.model.TappedAction;
 import dev.postproxy.sdk.param.EditMessageParams;
 import dev.postproxy.sdk.param.ListMessagesParams;
 import dev.postproxy.sdk.param.ReactParams;
@@ -151,6 +156,98 @@ class MessagesResourceTest {
         assertEquals("HUMAN_AGENT", body.get("tag"));
         assertEquals("mid.999", body.get("reply_to_external_id"));
         assertEquals(Map.of("force_reply", true), body.get("reply_markup"));
+    }
+
+    @Test
+    void sendsQuickReplies() {
+        var mock = new MockPostProxyClient(
+                mergeOutbound("quick_replies", List.of(Map.of(
+                        "content_type", "text", "title", "Track order", "payload", "TRACK"))),
+                200, null);
+        var messages = new MessagesResource(mock);
+
+        var msg = messages.send("chat_xyz789", SendMessageParams.builder()
+                .body("What can I help with?")
+                .quickReplies(List.of(
+                        new QuickReply("Track order", "TRACK"),
+                        new QuickReply("Talk to support", "HELP")))
+                .build());
+
+        @SuppressWarnings("unchecked")
+        var body = (Map<String, Object>) mock.getRequests().get(0).body();
+        @SuppressWarnings("unchecked")
+        var sent = (List<QuickReply>) body.get("quick_replies");
+        assertEquals(2, sent.size());
+        assertEquals("Track order", sent.get(0).title());
+        assertEquals("TRACK", sent.get(0).payload());
+        // Unset content_type is dropped by @JsonInclude rather than sent as null.
+        assertNull(sent.get(0).contentType());
+
+        assertEquals("text", msg.quickReplies().get(0).contentType());
+    }
+
+    @Test
+    void sendsButtonsWithCard() {
+        var mock = new MockPostProxyClient(
+                mergeOutbound("buttons", List.of(Map.of(
+                        "type", "web_url", "title", "Track", "url", "https://shop.example.com"))),
+                200, null);
+        var messages = new MessagesResource(mock);
+
+        var msg = messages.send("chat_xyz789", SendMessageParams.builder()
+                .body("Your order shipped")
+                .buttons(List.of(
+                        MessageButton.webUrl("Track", "https://shop.example.com"),
+                        MessageButton.postback("Cancel", "CANCEL:123")))
+                .card(new MessageCard("Arriving Friday", null,
+                        CardDefaultAction.webUrl("https://shop.example.com")))
+                .build());
+
+        @SuppressWarnings("unchecked")
+        var body = (Map<String, Object>) mock.getRequests().get(0).body();
+        @SuppressWarnings("unchecked")
+        var buttons = (List<MessageButton>) body.get("buttons");
+        assertEquals(2, buttons.size());
+        assertEquals("web_url", buttons.get(0).type());
+        assertEquals("https://shop.example.com", buttons.get(0).url());
+        assertNull(buttons.get(0).payload());
+        assertEquals("postback", buttons.get(1).type());
+        assertEquals("CANCEL:123", buttons.get(1).payload());
+
+        var card = (MessageCard) body.get("card");
+        assertEquals("Arriving Friday", card.subtitle());
+        assertEquals("https://shop.example.com", card.defaultAction().url());
+
+        assertEquals("https://shop.example.com", msg.buttons().get(0).url());
+    }
+
+    @Test
+    void readsTappedActionOnInboundTap() {
+        var mock = new MockPostProxyClient(
+                mergeMessage("tapped_action", Map.of(
+                        "kind", "quick_reply", "payload", "TRACK", "title", "Track order")),
+                200, null);
+        var messages = new MessagesResource(mock);
+
+        var msg = messages.get("msg_333");
+        assertNotNull(msg.tappedAction());
+        assertEquals(TappedAction.KIND_QUICK_REPLY, msg.tappedAction().kind());
+        assertEquals("TRACK", msg.tappedAction().payload());
+        assertEquals("Track order", msg.tappedAction().title());
+    }
+
+    // Map.ofEntries rejects nulls and Map.of has no copy-with, so build the
+    // variant fixtures explicitly.
+    private static Map<String, Object> mergeOutbound(String key, Object value) {
+        var merged = new java.util.LinkedHashMap<String, Object>(MOCK_OUTBOUND);
+        merged.put(key, value);
+        return merged;
+    }
+
+    private static Map<String, Object> mergeMessage(String key, Object value) {
+        var merged = new java.util.LinkedHashMap<String, Object>(MOCK_MESSAGE);
+        merged.put(key, value);
+        return merged;
     }
 
     @Test
