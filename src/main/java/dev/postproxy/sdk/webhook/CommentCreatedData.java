@@ -1,10 +1,16 @@
 package dev.postproxy.sdk.webhook;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import dev.postproxy.sdk.model.ErrorDetails;
 import dev.postproxy.sdk.model.Platform;
 
 import java.util.Map;
 
+/**
+ * Payload of the {@code comment.*} events: {@code created}, {@code failed},
+ * {@code failed_waiting_for_retry}, {@code delivery_unconfirmed}, {@code edited} and
+ * {@code edit_failed}.
+ */
 public record CommentCreatedData(
         @JsonProperty("id") String id,
         @JsonProperty("post_id") String postId,
@@ -23,6 +29,10 @@ public record CommentCreatedData(
         @JsonProperty("is_hidden") boolean isHidden,
         @JsonProperty("permalink") String permalink,
         @JsonProperty("platform_data") Map<String, Object> platformData,
+        @JsonProperty("profile_id") String profileId,
+        @JsonProperty("error") String error,
+        @JsonProperty("error_details") ErrorDetails errorDetails,
+        @JsonProperty("external_edited_at") String externalEditedAt,
         @JsonProperty("posted_at") String postedAt,
         @JsonProperty("created_at") String createdAt
 ) {}

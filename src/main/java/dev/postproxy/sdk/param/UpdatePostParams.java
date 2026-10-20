@@ -6,7 +6,8 @@ import java.util.List;
 public record UpdatePostParams(
         String body,
         List<String> profiles,
-        List<String> media,
+        /** URL strings and/or {@link MediaInput} items. */
+        List<Object> media,
         List<Path> mediaFiles,
         PlatformParams platforms,
         List<ThreadChildInput> thread,
@@ -25,7 +26,7 @@ public record UpdatePostParams(
     public static class Builder {
         private String body;
         private List<String> profiles;
-        private List<String> media;
+        private List<Object> media;
         private List<Path> mediaFiles;
         private PlatformParams platforms;
         private List<ThreadChildInput> thread;
@@ -38,7 +39,8 @@ public record UpdatePostParams(
 
         public Builder body(String body) { this.body = body; return this; }
         public Builder profiles(List<String> profiles) { this.profiles = profiles; return this; }
-        public Builder media(List<String> media) { this.media = media; return this; }
+        /** Each item is a URL string or a {@link MediaInput}. */
+        public Builder media(List<?> media) { this.media = MediaInput.normalize(media); return this; }
         public Builder mediaFiles(List<Path> mediaFiles) { this.mediaFiles = mediaFiles; return this; }
         public Builder platforms(PlatformParams platforms) { this.platforms = platforms; return this; }
         public Builder thread(List<ThreadChildInput> thread) { this.thread = thread; return this; }

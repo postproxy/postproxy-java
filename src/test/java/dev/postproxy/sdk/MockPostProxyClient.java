@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.postproxy.sdk.exception.*;
+import dev.postproxy.sdk.model.MediaDownload;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -16,7 +17,8 @@ public class MockPostProxyClient extends PostProxyClient {
     private final ObjectMapper mapper;
     private final List<RecordedRequest> requests = new ArrayList<>();
 
-    public record RecordedRequest(String method, String url, Object body, String idempotencyKey) {}
+    public record RecordedRequest(String method, String url, Object body, String idempotencyKey,
+                                  Map<String, String> headers) {}
 
     public MockPostProxyClient(Object responseBody, int responseStatus, String profileGroupId) {
         super("test-api-key", "https://mock.postproxy.dev", profileGroupId);
@@ -44,6 +46,24 @@ public class MockPostProxyClient extends PostProxyClient {
     public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
                       String idempotencyKey) {
         return handle("POST", path, queryParams, body, type, idempotencyKey);
+    }
+
+    @Override
+    public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
+                      String idempotencyKey, Map<String, String> headers) {
+        return handle("POST", path, queryParams, body, type, idempotencyKey, headers);
+    }
+
+    @Override
+    public <T> T put(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
+                     String idempotencyKey) {
+        return handle("PUT", path, queryParams, body, type, idempotencyKey);
+    }
+
+    @Override
+    public MediaDownload getRaw(String path, Map<String, String> queryParams) {
+        handle("GET", path, queryParams, null, new TypeReference<Object>() {}, null);
+        return responseBody instanceof MediaDownload download ? download : null;
     }
 
     @Override
@@ -78,11 +98,18 @@ public class MockPostProxyClient extends PostProxyClient {
     public <T> T postMultipart(String path, Map<String, String> queryParams,
                                 Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
                                 String idempotencyKey) {
+        return postMultipart(path, queryParams, fields, fileGroups, type, idempotencyKey, null);
+    }
+
+    @Override
+    public <T> T postMultipart(String path, Map<String, String> queryParams,
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
+                                String idempotencyKey, Map<String, String> headers) {
         Map<String, Object> body = new LinkedHashMap<>(fields);
         if (fileGroups != null) {
             body.put("__fileGroups", fileGroups);
         }
-        return handle("POST", path, queryParams, body, type, idempotencyKey);
+        return handle("POST", path, queryParams, body, type, idempotencyKey, headers);
     }
 
     @Override
@@ -102,9 +129,14 @@ public class MockPostProxyClient extends PostProxyClient {
         return handle("PATCH", path, queryParams, body, type, idempotencyKey);
     }
 
-    @SuppressWarnings("unchecked")
     private <T> T handle(String method, String path, Map<String, String> queryParams,
                           Object body, TypeReference<T> type, String idempotencyKey) {
+        return handle(method, path, queryParams, body, type, idempotencyKey, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T handle(String method, String path, Map<String, String> queryParams,
+                          Object body, TypeReference<T> type, String idempotencyKey, Map<String, String> headers) {
         StringBuilder url = new StringBuilder("https://mock.postproxy.dev").append(path);
         if (queryParams != null && !queryParams.isEmpty()) {
             url.append("?");
@@ -114,7 +146,8 @@ public class MockPostProxyClient extends PostProxyClient {
             }
             url.append(joiner);
         }
-        requests.add(new RecordedRequest(method, url.toString(), body, idempotencyKey));
+        requests.add(new RecordedRequest(method, url.toString(), body, idempotencyKey,
+                headers == null ? Map.of() : headers));
 
         if (responseStatus == 204) return null;
 
@@ -125,9 +158,11 @@ public class MockPostProxyClient extends PostProxyClient {
             throw switch (responseStatus) {
                 case 400 -> new BadRequestException(msg, parsed);
                 case 401 -> new AuthenticationException(msg, parsed);
+                case 403 -> new ForbiddenException(msg, parsed);
                 case 404 -> new NotFoundException(msg, parsed);
                 case 409 -> new ConflictException(msg, parsed);
                 case 422 -> new ValidationException(msg, parsed);
+                case 429 -> new RateLimitException(msg, parsed);
                 default -> new PostProxyException(msg, responseStatus, parsed);
             };
         }

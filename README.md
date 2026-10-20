@@ -180,6 +180,112 @@ var post = client.posts().create(CreatePostParams.builder()
         .build())
     .build());
 
+// Media items can be URL strings or MediaInput ({"url": ...}) objects
+var post = client.posts().create(CreatePostParams.builder()
+    .body("Photos")
+    .profiles(List.of("profile-id"))
+    .media(List.of("https://example.com/1.jpg", MediaInput.of("https://example.com/2.jpg")))
+    .build());
+
+// Alt text (one string, or one per media item), AI disclosure, and country targeting
+client.posts().create(CreatePostParams.builder()
+    .body("Launch day")
+    .profiles(List.of("ig-profile", "li-profile", "fb-profile"))
+    .media(List.of("https://example.com/1.jpg", "https://example.com/2.jpg"))
+    .platforms(PlatformParams.builder()
+        .instagram(InstagramParams.builder()
+            .altText(List.of("Our team", "The product")).madeWithAi(false).build())
+        .linkedin(LinkedInParams.builder()
+            .altText("Our team and the product").countries(List.of("US", "CA")).organizationId("123").build())
+        .facebook(FacebookParams.builder().countries(List.of("US")).build())
+        .build())
+    .build());
+
+// Facebook link post (text-only — renders the link preview card)
+client.posts().create(CreatePostParams.builder()
+    .body("Read the announcement")
+    .profiles(List.of("fb-profile"))
+    .platforms(PlatformParams.builder()
+        .facebook(FacebookParams.builder().link("https://example.com/blog/launch").build())
+        .build())
+    .build());
+
+// LinkedIn poll
+client.posts().create(CreatePostParams.builder()
+    .body("Quick question for you all")
+    .profiles(List.of("li-profile"))
+    .platforms(PlatformParams.builder()
+        .linkedin(LinkedInParams.builder()
+            .format(LinkedInFormat.POLL)
+            .organizationId("123")
+            .pollQuestion("Tabs or spaces?")
+            .pollOptions(List.of("Tabs", "Spaces"))
+            .pollDurationDays(7) // 1, 3, 7 or 14
+            .build())
+        .build())
+    .build());
+
+// Threads topic tag, TikTok draft with a custom cover
+client.posts().create(CreatePostParams.builder()
+    .body("New drop")
+    .profiles(List.of("threads-profile", "tt-profile"))
+    .media(List.of("https://example.com/clip.mp4"))
+    .platforms(PlatformParams.builder()
+        .threads(ThreadsParams.builder().topicTag("Sneakers").build())
+        .tiktok(TikTokParams.builder()
+            .format(TikTokFormat.VIDEO).uploadAsDraft(true).coverUrl("https://example.com/cover.jpg").build())
+        .build())
+    .build());
+
+// Custom cover image (Instagram, TikTok, YouTube, Pinterest): a hosted URL…
+client.posts().create(CreatePostParams.builder()
+    .body("New video")
+    .profiles(List.of("yt-profile"))
+    .media(List.of("https://example.com/video.mp4"))
+    .platforms(PlatformParams.builder()
+        .youtube(YouTubeParams.builder().title("Launch").coverUrl("https://example.com/cover.jpg").build())
+        .build())
+    .build());
+// …or a local file, uploaded with the post (switches the request to multipart)…
+client.posts().create(CreatePostParams.builder()
+    .body("New video")
+    .profiles(List.of("tt-profile"))
+    .media(List.of("https://example.com/video.mp4"))
+    .platforms(PlatformParams.builder()
+        .tiktok(TikTokParams.builder().format(TikTokFormat.VIDEO).coverFile("./cover.jpg").build())
+        .build())
+    .build());
+// …or a base64 data URL
+client.posts().create(CreatePostParams.builder()
+    .body("New pin")
+    .profiles(List.of("pin-profile"))
+    .media(List.of("https://example.com/video.mp4"))
+    .platforms(PlatformParams.builder()
+        .pinterest(PinterestParams.builder()
+            .boardId("board-id").coverFile("data:image/jpeg;base64,/9j/4AAQ...").build())
+        .build())
+    .build());
+
+// Instagram reel with licensed music (profiles connected via Facebook login).
+// Find an audio id with client.profiles().instagramAvailableAudio(...).
+client.posts().create(CreatePostParams.builder()
+    .body("Summer vibes")
+    .profiles(List.of("ig-profile"))
+    .media(List.of("https://example.com/reel.mp4"))
+    .platforms(PlatformParams.builder()
+        .instagram(InstagramParams.builder()
+            .format(InstagramFormat.REEL).audioId("1234567890").audioVolume(60).videoVolume(30).build())
+        .build())
+    .build());
+
+// Skip the duplicate check (otherwise an identical post submitted moments
+// ago throws ConflictException)
+client.posts().create(CreatePostParams.builder()
+    .body("Same text again")
+    .profiles(List.of("profile-id"))
+    .skipDuplicateCheck(true)
+    .build());
+
 // Schedule a post
 var post = client.posts().create(CreatePostParams.builder()
     .body("Scheduled post")
@@ -201,11 +307,24 @@ var post = client.posts().create(CreatePostParams.builder()
     .build());
 for (var child : post.thread()) {
     System.out.println(child.id() + ": " + child.body());
+    // Each thread item is delivered on its own; its platforms() shows whether it went out
+    child.platforms().forEach(p -> System.out.println("  " + p.platform() + ": " + p.status()));
 }
 
 // Update a post (only drafts or scheduled posts)
 var post = client.posts().update("post-id", UpdatePostParams.builder()
     .body("Updated content!")
+    .build());
+
+// Edit a post that's already published. Only the body, the YouTube title and
+// the Pinterest title / destinationLink can change; anything else is a 422.
+// The edit is pushed to the platforms in the background — watch for the
+// platform_post.edited / platform_post.edit_failed webhooks.
+client.posts().update("published-post-id", UpdatePostParams.builder()
+    .body("Fixed a typo")
+    .platforms(PlatformParams.builder()
+        .youtube(YouTubeParams.builder().title("Better title").build())
+        .build())
     .build());
 
 // Update platform params only
@@ -416,26 +535,41 @@ switch (event.type()) {
         var data = WebhookEvents.asReactionEvent(event);
         System.out.println(data.action() + " " + data.reaction());
     }
+    case PLATFORM_POST_EDITED, PLATFORM_POST_EDIT_FAILED -> {
+        var data = WebhookEvents.asPlatformPost(event);
+        System.out.println("Edit on " + data.platform() + ": " + data.status());
+    }
+    case MESSAGE_TEMPLATE_STATUS_UPDATED -> {
+        var data = WebhookEvents.asMessageTemplateEvent(event);
+        System.out.println(data.name() + ": " + data.status());
+    }
     default -> { /* ... */ }
 }
 ```
 
-Event types: `post.processed`, `post.imported`, `platform_post.published`,
-`platform_post.failed`, `platform_post.failed_waiting_for_retry`,
-`platform_post.insights`, `profile.connected`, `profile.disconnected`,
-`profile.stats`, `media.failed`, `comment.created`, `profile_comment.created`,
-`message.received`, `message.sent`, `message.delivered`, `message.read`,
-`message.edited`, `message.deleted`, `message.failed_waiting_for_retry`,
-`message.failed`, `reaction.received`.
+Event types:
+
+- **Posts:** `post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.edited`, `platform_post.edit_failed`, `platform_post.insights`, `media.failed`
+- **Profiles:** `profile.connected`, `profile.disconnected`, `profile.stats`, `profile.placements_synced`, `placement.orphaned`, `placement.restored`
+- **Comments:** `comment.created`, `comment.failed`, `comment.failed_waiting_for_retry`, `comment.delivery_unconfirmed`, `comment.edited`, `comment.edit_failed`, `profile_comment.created`, `profile_comment.failed`, `profile_comment.failed_waiting_for_retry`, `profile_comment.deleted`
+- **Messages:** `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`, `referral.received`
+- **WhatsApp:** `message_template.status_updated`, `message_template.category_updated`, `placement.name_status_updated`, `placement.quality_updated`, `whatsapp.automatic_event`
 
 Typed payloads (decoders on `WebhookEvents`):
 
 | Payload | Events | Decoder |
 | --- | --- | --- |
-| `CommentCreatedData` | `comment.created` | `asCommentCreated` |
-| `ProfileCommentCreatedData` | `profile_comment.created` | `asProfileCommentCreated` |
+| `PlatformPostData` | `platform_post.*` (except `insights`) | `asPlatformPost` |
+| `ProfileEventData` | `profile.connected`, `profile.disconnected` | `asProfileEvent` |
+| `PlacementsSyncedData` | `profile.placements_synced` | `asPlacementsSynced` |
+| `PlacementEventData` | `placement.orphaned`, `placement.restored`, `placement.name_status_updated`, `placement.quality_updated` | `asPlacementEvent` |
+| `CommentCreatedData` | the six `comment.*` events | `asCommentCreated` |
+| `ProfileCommentCreatedData` | the four `profile_comment.*` events | `asProfileCommentCreated` |
 | `MessageEventData` | the eight `message.*` events | `asMessageEvent` |
 | `ReactionEventData` | `reaction.received` | `asReactionEvent` |
+| `ReferralEventData` | `referral.received` | `asReferral` |
+| `MessageTemplateEventData` | `message_template.status_updated`, `message_template.category_updated` | `asMessageTemplateEvent` |
+| `WhatsAppAutomaticEventData` | `whatsapp.automatic_event` | `asWhatsAppAutomaticEvent` |
 
 ### Comments
 
@@ -483,11 +617,25 @@ client.comments().unhide("post-id", "comment-id", "profile-id");
 client.comments().like("post-id", "comment-id", "profile-id");
 client.comments().unlike("post-id", "comment-id", "profile-id");
 
+// Edit a comment you published (Facebook, YouTube). Runs in the background —
+// the outcome arrives as comment.edited / comment.edit_failed.
+client.comments().edit("post-id", "comment-id", "profile-id", "Fixed a typo");
+
+// Pin / unpin a comment (TikTok)
+client.comments().pin("post-id", "comment-id", "profile-id");
+client.comments().unpin("post-id", "comment-id", "profile-id");
+
 // Private reply: send a DM in reply to a comment (Instagram & Facebook). Returns a Message.
 var message = client.comments().privateReply(
     "post-id", "comment-id", "profile-id",
     "Thanks for your comment — DM-ing you the details.");
 System.out.println(message.id() + " in chat " + message.chatId());
+
+// Private replies take quick replies, buttons, a card or a carousel too
+// (one private reply per comment, within 7 days of it)
+client.comments().privateReply("post-id", "comment-id", "profile-id", "Pick one:",
+    List.of(new QuickReply("Pricing", "PRICING"), new QuickReply("Talk to us", "HUMAN")),
+    null, null, null, null);
 
 // Filter by when PostProxy received the comment (created_at, not posted_at).
 // A bare date means that date's start of day. Applies to top-level comments —
@@ -539,7 +687,7 @@ Results are ordered newest first by receipt time.
 ### Direct Messages
 
 Read and send 1:1 messages on profiles that support DMs (Facebook Messenger,
-Instagram, Telegram, Bluesky). Outbound sends are processed asynchronously and
+Instagram, WhatsApp, Telegram, Bluesky). Outbound sends are processed asynchronously and
 start with `status: pending`.
 
 ```java
@@ -570,6 +718,11 @@ var chat = client.chats().create("profile-id", CreateChatParams.builder("igsid_8
 var fetched = client.chats().get(chat.id());
 client.chats().archive(chat.id());
 client.chats().unarchive(chat.id());
+
+// Read receipt and typing indicator (typing: Facebook, Instagram, WhatsApp)
+client.chats().markRead(chat.id());
+client.chats().startTyping(chat.id());
+client.chats().stopTyping(chat.id());
 
 // List messages in a chat
 var messages = client.messages().list(chat.id(), ListMessagesParams.builder()
@@ -676,6 +829,80 @@ webhook payload. `tappedAction` is derived rather than stored, so it also resolv
 recorded before Postproxy exposed it, including Instagram ice-breaker taps and Telegram
 callback queries (`KIND_CALLBACK_QUERY`). A tap also opens the 24h window.
 
+#### Carousels (Facebook & Instagram)
+
+`elements` sends a horizontally scrolling carousel of up to 10 cards. Each `MessageElement`
+needs a `title` (≤ 80 chars) plus at least one of `subtitle`, `imageUrl`, `defaultAction` or
+`buttons` (≤ 3). A carousel can't be combined with `body`, `buttons` or `card`.
+
+```java
+import dev.postproxy.sdk.model.MessageElement;
+
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .elements(List.of(
+        new MessageElement("Red sneaker", "$89", "https://cdn.example.com/red.png",
+            List.of(MessageButton.webUrl("Buy", "https://shop.example.com/red"))),
+        new MessageElement("Blue sneaker", "$92", "https://cdn.example.com/blue.png",
+            List.of(MessageButton.postback("Notify me", "NOTIFY:blue")))))
+    .build());
+```
+
+#### WhatsApp
+
+WhatsApp chats run through a phone number, so creating one takes the `placementId` (the
+phone number id from `profiles().placements(...)`). Send exactly one of `body`, `media`,
+`template`, `interactive`, `location` or `contacts` per message. Outside the 24-hour
+customer service window (`chat.withinMessagingWindow()` is false) only an approved template
+gets through.
+
+```java
+import dev.postproxy.sdk.model.MessageLocation;
+import dev.postproxy.sdk.model.MessageTemplateInput;
+import dev.postproxy.sdk.model.TemplateButtonParam;
+
+var chat = client.chats().create("wa-profile-id", CreateChatParams.builder("15551234567")
+    .placementId("phone-number-id")
+    .build());
+
+// Template — address it by name (+ language) or id. Variables are positional:
+// header, then body, then dynamic URL buttons.
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .template(MessageTemplateInput.builder()
+        .name("order_update")
+        .language("en_US")
+        .variables(List.of("Jane", "#1234"))
+        .buttonParams(List.of(TemplateButtonParam.of(0, "url", Map.of("text", "1234"))))
+        .build())
+    .build());
+
+// Location, contacts, and Meta's interactive messages (buttons, lists, ...)
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .location(new MessageLocation(52.52, 13.405, "Our store", "Main St 1"))
+    .build());
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .contacts(List.of(Map.of(
+        "name", Map.of("formatted_name", "Support"),
+        "phones", List.of(Map.of("phone", "+15550000000")))))
+    .build());
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .interactive(Map.of(
+        "type", "button",
+        "body", Map.of("text", "Did that help?"),
+        "action", Map.of("buttons", List.of(Map.of("type", "reply", "reply", Map.of("id", "yes", "title", "Yes"))))))
+    .build());
+
+// Send options
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .body("https://example.com").linkPreview(true).build());
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .media(List.of("https://example.com/invoice.pdf")).filename("invoice.pdf").build());
+client.messages().send(chat.id(), SendMessageParams.builder()
+    .media(List.of("https://example.com/note.ogg")).voiceNote(true).build());
+```
+
+Templates, number registration, the business profile, groups and more are managed through
+`client.whatsappTemplates()` and `client.whatsapp()` — see [WhatsApp management](#whatsapp-management).
+
 ### Profile comments (Google Business reviews)
 
 Profile-level comments expose Google Business reviews and replies. Reviews are user-generated — the SDK lets you list/get them and reply to or delete your own replies. Reviews sync twice daily.
@@ -771,6 +998,38 @@ for (var p : placements.data()) {
 var placement = client.profiles().assignPlacementToGroup(
         "profile-id", "placement-external-id", "pg-other");
 System.out.println(placement.profileGroupId()); // "pg-other"
+
+// Move the whole profile (with its placements) to another group
+client.profiles().assignToGroup("profile-id", "pg-other");
+
+// Daily stats and follower history
+var daily = client.profiles().dailyStats("profile-id", null, "2026-09-01", "2026-09-30",
+        DailyStatsAttribution.PUBLISH, null); // or RECEIVED (default)
+for (var day : daily.data().records()) {
+    System.out.println(day.date() + " " + day.metric("impressions"));
+}
+
+var followers = client.profiles().followerHistory("profile-id", null, "2026-09-01", null, null);
+for (var day : followers.data().records()) {
+    System.out.println(day.date() + " " + day.followersTotal());
+}
+
+// Instagram: whether a DM participant is verified / follows you
+var status = client.profiles().participantStatus("ig-profile-id", "igsid-123");
+
+// LinkedIn: resolve a company page to the URN used to @-mention it
+var mention = client.profiles().resolveMention("li-profile-id", "https://www.linkedin.com/company/acme");
+System.out.println(mention.urn()); // "urn:li:organization:123"
+
+// Instagram (Facebook login): music for reels — pass the id as InstagramParams.audioId
+var audio = client.profiles().instagramAvailableAudio("ig-profile-id",
+        InstagramAudioType.MUSIC, "summer", null); // or ORIGINAL_SOUND
+
+// Facebook Page about / contact info
+var page = client.profiles().facebookPage("fb-profile-id", "page-id");
+client.profiles().updateFacebookPage("fb-profile-id", "page-id", Map.of(
+        "about", "Coffee roasters since 2010",
+        "website", "https://example.com"));
 
 // Ice breakers (Instagram DMs): FAQ prompts shown when a user opens a chat
 var iceBreakers = client.profiles().iceBreakers("profile-id");
@@ -876,9 +1135,21 @@ behave exactly like ones the poll picks up (`source: "imported"`, `post.imported
 but a backfill's follow-up work is queued at a lower priority so a deep run can't slow down
 publishing.
 
+#### Chat backfill
+
+`backfillChats(...)` imports DM history the same way `backfillPosts(...)` imports posts. Runs
+are `ChatSync` records (`chatsSeen()`, `messagesImported()`, `oldestUpdatedAt()`).
+
+```java
+var run = client.profiles().backfillChats("profile-id", "2026-01-01");
+var latest = client.profiles().chatSync("profile-id", run.id());
+var runs = client.profiles().chatSyncs("profile-id", null, PostSyncStatus.COMPLETED, null, null, null);
+```
+
 ### Profile Groups
 
 ```java
+import dev.postproxy.sdk.model.ConnectionOnboarding;
 import dev.postproxy.sdk.model.Platform;
 
 // List all groups
@@ -903,6 +1174,17 @@ var conn = client.profileGroups().initializeConnection(
 );
 System.out.println(conn.url()); // Redirect the user to this URL
 
+// Pick the onboarding flow: Instagram via Facebook login (needed for reel music),
+// WhatsApp via the Cloud API (API) or the WhatsApp Business app (BUSINESS_APP).
+client.profileGroups().initializeConnection("pg-id", Platform.INSTAGRAM,
+    "https://yourapp.com/callback", ConnectionOnboarding.FACEBOOK, null);
+client.profileGroups().initializeConnection("pg-id", Platform.WHATSAPP,
+    "https://yourapp.com/callback", ConnectionOnboarding.BUSINESS_APP, null);
+
+// Re-authorize an existing connection
+client.profileGroups().initializeConnection("pg-id", Platform.LINKEDIN,
+    "https://yourapp.com/callback", null, true);
+
 // BlueSky — app password (synchronous, no OAuth)
 var bsky = client.profileGroups().connectBluesky(
     "pg-id", "yourname.bsky.social", "xxxx-xxxx-xxxx-xxxx"
@@ -919,6 +1201,137 @@ System.out.println(tg.nextStep());
 while (client.profiles().placements(tg.profile().id()).data().isEmpty()) {
     Thread.sleep(3000);
 }
+```
+
+### Placements & API keys
+
+Both require an **account-wide** API key.
+
+```java
+// Every placement (Facebook Page, LinkedIn org, WhatsApp number, ...) across groups
+var placements = client.placements().list(null, 50);
+for (var p : placements.data()) {
+    System.out.println(p.platform() + " " + p.name() + " via " + p.activeProfile().name());
+}
+
+// When several connected profiles reach the same placement, pick the one to use
+client.placements().setActiveProfile("placement-id", "profile-id");
+
+// Group-scoped API keys
+var key = client.apiKeys().create("CI pipeline", "pg-id");
+System.out.println(key.token()); // shown only once
+var keys = client.apiKeys().list();
+client.apiKeys().delete(key.id());
+```
+
+### Google Business management
+
+Manage a Google Business Profile location's own data — separate from posting to it.
+`locationId` is the placement id from `profiles().placements(...)`. Google's camelCased
+payloads pass through untouched as `Map<String, Object>`, so you can PATCH back what you GET;
+updates take a `fields` list naming what to change. Every method has a short form and a
+long form taking the optional arguments (null to omit) plus `profileGroupId` and, on writes,
+`idempotencyKey`.
+
+```java
+var gbp = client.googleBusiness();
+
+var location = gbp.location("gbp-profile-id", "location-id");
+gbp.updateLocation("gbp-profile-id", "location-id", List.of("websiteUri"),
+    Map.of("websiteUri", "https://example.com"));
+gbp.updateHours("gbp-profile-id", "location-id", List.of("regularHours"), Map.of(
+    "regularHours", Map.of("periods", List.of(Map.of(
+        "openDay", "MONDAY", "openTime", Map.of("hours", 9),
+        "closeDay", "MONDAY", "closeTime", Map.of("hours", 17))))));
+
+// Categories and attributes
+gbp.availableLocationCategories("gbp-profile-id", "location-id", "US", null, "coffee", null, null, null, null);
+var attrs = gbp.attributes("gbp-profile-id", "location-id");
+gbp.availableAttributes("gbp-profile-id", "location-id");
+gbp.updateAttributes("gbp-profile-id", "location-id",
+    List.of(Map.of("name", "attributes/has_wi_fi", "values", List.of(true))),
+    List.of("attributes/has_wi_fi"), null, null);
+
+// Services and food menus
+gbp.serviceList("gbp-profile-id", "location-id");
+gbp.updateServiceList("gbp-profile-id", "location-id", List.of(/* serviceItems */));
+gbp.foodMenus("gbp-profile-id", "location-id");
+gbp.updateFoodMenus("gbp-profile-id", "location-id", List.of(/* menus */));
+
+// Place action links (booking, ordering, ...)
+gbp.availablePlaceActionTypes("gbp-profile-id", "location-id");
+gbp.createPlaceActionLink("gbp-profile-id", "location-id", "https://book.example.com", "APPOINTMENT",
+    true, null, null);
+var links = gbp.placeActionLinks("gbp-profile-id", "location-id");
+gbp.updatePlaceActionLink("gbp-profile-id", "location-id", "locations/1/placeActionLinks/2",
+    List.of("uri"), "https://book.example.com/new", null, null);
+gbp.deletePlaceActionLink("gbp-profile-id", "location-id", "locations/1/placeActionLinks/2");
+
+// Photos and videos
+gbp.createMedia("gbp-profile-id", "location-id", "https://example.com/storefront.jpg",
+    "EXTERIOR", "PHOTO", null, null, null);
+var media = gbp.media("gbp-profile-id", "location-id");
+gbp.deleteMedia("gbp-profile-id", "location-id", "accounts/1/locations/1/media/9");
+```
+
+### WhatsApp management
+
+`phoneNumberId` is the placement id from `profiles().placements(...)`. Responses are Meta's
+payloads as `Map<String, Object>`.
+
+```java
+import dev.postproxy.sdk.param.WhatsAppTemplateInput;
+
+// Message templates (submitted to Meta for review)
+var tpl = client.whatsappTemplates().create("wa-profile-id",
+    WhatsAppTemplateInput.builder("order_update", "UTILITY", "en_US")
+        .components(List.of(Map.of("type", "BODY", "text", "Hi {{1}}, order {{2}} has shipped.")))
+        .build());
+var templates = client.whatsappTemplates().list("wa-profile-id", null, null, "APPROVED", null, null);
+client.whatsappTemplates().get("wa-profile-id", "order_update", "en_US", null);
+client.whatsappTemplates().update("wa-profile-id", tpl.id(), null, 3600);
+client.whatsappTemplates().delete("wa-profile-id", "order_update"); // every language
+client.whatsappTemplates().library("wa-profile-id", "delivery", null, null);
+
+var wa = client.whatsapp();
+
+// Number registration
+wa.numberInfo("wa-profile-id", "phone-number-id");
+wa.requestVerificationCode("wa-profile-id", "phone-number-id", "SMS", "en", null, null);
+wa.verifyPhoneNumber("wa-profile-id", "phone-number-id", "123456");
+wa.registerPhoneNumber("wa-profile-id", "phone-number-id", "000000"); // two-step PIN
+
+// Business profile, display name, username
+wa.updateBusinessProfile("wa-profile-id", "phone-number-id",
+    Map.of("about", "We reply fast", "websites", List.of("https://example.com")));
+wa.updateBusinessProfilePhoto("wa-profile-id", "phone-number-id", "https://example.com/logo.png");
+wa.requestDisplayNameChange("wa-profile-id", "phone-number-id", "Acme Coffee");
+wa.usernameSuggestions("wa-profile-id", "phone-number-id");
+wa.setUsername("wa-profile-id", "phone-number-id", "acmecoffee");
+
+// Blocked users
+wa.blockUsers("wa-profile-id", "phone-number-id", List.of("15551234567"));
+wa.blockedUsers("wa-profile-id", "phone-number-id");
+
+// Groups
+var group = wa.createGroup("wa-profile-id", "phone-number-id", "VIP customers",
+    null, "approval_required", null, null);
+wa.createGroupInviteLink("wa-profile-id", "phone-number-id", "group-id");
+wa.groupJoinRequests("wa-profile-id", "phone-number-id", "group-id");
+wa.approveGroupJoinRequests("wa-profile-id", "phone-number-id", "group-id", List.of("15551234567"));
+
+// Conversions for click-to-WhatsApp ads (account-level, no phone number id)
+wa.createDataset("wa-profile-id");
+wa.sendConversionEvent("wa-profile-id", Map.of(
+    "event_name", "Purchase",
+    "event_id", "order-1234",
+    "chat_id", "chat-id",
+    "currency", "USD",
+    "value", 49.0));
+
+// Download inbound media
+var file = wa.media("wa-profile-id", "phone-number-id", "media-id");
+System.out.println(file.contentType() + " " + file.data().length);
 ```
 
 ## Error handling
@@ -945,11 +1358,19 @@ Exception hierarchy:
 | `PostProxyException` | Base class |
 | `AuthenticationException` | 401 |
 | `BadRequestException` | 400 |
+| `ForbiddenException` | 403 — account canceled or past due, or the platform refused the action |
 | `NotFoundException` | 404 |
 | `ConflictException` | 409 — duplicate submission (`duplicate_post_id`), a backfill already running (`profile_sync_id`), or an in-flight `Idempotency-Key` |
 | `ValidationException` | 422 |
+| `RateLimitException` | 429 — posting rate limit reached, or the platform is rate-limiting; `getRetryAfter()` holds the `Retry-After` seconds (or null) |
 
-A `429` (posting rate limit reached) surfaces as the base `PostProxyException`.
+```java
+try {
+    client.posts().create(params);
+} catch (RateLimitException e) {
+    Integer wait = e.getRetryAfter(); // seconds, or null
+}
+```
 
 ## Types
 
@@ -964,21 +1385,36 @@ Key types:
 
 | Type | Fields |
 |---|---|
-| `Post` | id, body, status, scheduledAt, createdAt, media, thread, platforms, queueId, queuePriority |
-| `Profile` | id, name, status, platform, profileGroupId, expiresAt, postCount |
+| `Post` | id, body, status, scheduledAt, createdAt, draft, source, media, thread, platforms, queueId, queuePriority |
+| `Profile` | id, name, username, status, inactiveReason, platform, platformId, profileGroupId, expiresAt, postCount, avatarUrl, platformUrl, placementsSyncStatus |
+| `Placement` | id, name, avatarUrl, metadata |
+| `AccountPlacement` | id, platform, externalId, name, avatarUrl, status, activeProfile, linkedProfiles — returned by `placements().list(...)` |
+| `ApiKey` | id, name, profileGroupId, sandbox, token (only on create), createdAt |
 | `ProfileGroup` | id, name, profilesCount |
 | `Media` | id, type, url, status |
-| `ThreadChild` | id, body, media |
+| `ThreadChild` | id, body, media, platforms |
 | `ThreadChildInput` | body, media |
 | `Webhook` | id, url, events, secret, enabled, description, createdAt |
 | `WebhookDelivery` | id, eventId, eventType, responseStatus, attemptNumber, success, attemptedAt, createdAt |
-| `PlatformResult` | platform, status, params, error, attemptedAt, insights |
+| `PlatformResult` | platform, profileId, profileName, status, permalink, params, error, errorDetails, attemptedAt, insights, attachments |
+| `PlatformAttachment` | id, type, status, contentType, url |
 | `ListResponse<T>` | data |
-| `Comment` | id, externalId, body, status, authorUsername, authorAvatarUrl, authorExternalId, metadata, parentExternalId, likeCount, isHidden, permalink, platformData, attachments, postedAt, createdAt, replies |
+| `Comment` | id, externalId, body, status, authorUsername, authorAvatarUrl, authorExternalId, metadata, parentExternalId, likeCount, isHidden, permalink, platformData, attachments, externalEditedAt, postedAt, createdAt, replies |
 | `BulkComment` | Every `Comment` accessor except `replies`, plus postId, profileId, platform — returned by `comments().listAll(...)` |
-| `PostSync` | id, profileId, kind, trigger, status, startedAt, completedAt, postsSeen, postsImported, backfillFrom, oldestPostedAt, error, createdAt |
-| `Chat` | id, profileId, platform, participantExternalId, participantUsername, participantName, participantAvatarUrl, externalConversationId, lastInboundAt, lastOutboundAt, lastMessageAt, metadata, archived, createdAt |
-| `Message` | id, chatId, externalId, direction, body, status, tag, externalCommentId, errorMessage, platformData, externalPostedAt, externalDeliveredAt, externalReadAt, externalEditedAt, replyToExternalId, replyMarkup, quickReplies, buttons, card, tappedAction, externalDeletedAt, reactions, attachments, isUnsupported, createdAt |
+| `PostSync` | id, profileId, placementId, kind, trigger, status, startedAt, completedAt, postsSeen, postsImported, backfillFrom, oldestPostedAt, error, createdAt |
+| `ChatSync` | id, profileId, placementId, kind, trigger, status, startedAt, completedAt, chatsSeen, messagesImported, backfillFrom, oldestUpdatedAt, error, createdAt |
+| `DailyStatsResponse` / `DailyStats` | data → profileId, platform, placementId, attribution, from, to, dataTimezone, records (`DailyStatsRecord`: date, platformStats, metrics / `metric(name)`), metrics |
+| `FollowerHistoryResponse` / `FollowerHistory` | data → profileId, platform, placementId, from, to, records (`FollowerHistoryRecord`: date, followersGained, followersLost, followersChange, followersTotal) |
+| `ParticipantStatus` | isVerifiedUser, isUserFollowBusiness, isBusinessFollowUser, fetchedAt |
+| `ResolvedMention` | urn, type, name, vanityName |
+| `Chat` | id, profileId, platform, externalPlacementId, group, participantExternalId, participantUsername, participantName, participantAvatarUrl, externalConversationId, lastInboundAt, lastOutboundAt, lastMessageAt, metadata, archived, withinMessagingWindow, createdAt |
+| `Message` | id, chatId, externalId, direction, body, status, tag, externalCommentId, errorMessage, errorDetails, platformData, externalPostedAt, externalDeliveredAt, externalReadAt, externalEditedAt, replyToExternalId, replyMarkup, quickReplies, buttons, card, elements, tappedAction, storyReply, interactive, location, contacts, template, externalDeletedAt, reactions, attachments, isUnsupported, createdAt |
+| `MessageElement` | title, subtitle, imageUrl, defaultAction, buttons |
+| `MessageLocation` | latitude, longitude, name, address |
+| `MessageTemplateInput` | id, name, language, variables, buttonParams (`TemplateButtonParam`), headerMedia (`TemplateHeaderMedia`), headerLocation |
+| `MessageTemplateRef` | id, externalId, name, language, variables |
+| `WhatsAppTemplate` | id, externalId, profileId, name, language, category, status, parameterFormat, components, messageSendTtlSeconds, rejectedReason, qualityScore, variableCount, createdAt, updatedAt |
+| `MediaDownload` | data (byte[]), contentType |
 | `QuickReply` | contentType, title, payload |
 | `MessageButton` | type, title, url, payload — with `webUrl(title, url)` / `postback(title, payload)` factories |
 | `MessageCard` | subtitle, imageUrl, defaultAction |
@@ -1000,16 +1436,16 @@ Key types:
 
 | Type | Platform |
 |---|---|
-| `FacebookParams` | format (`post`, `story`), firstComment, pageId |
-| `InstagramParams` | format (`post`, `reel`, `story`), firstComment, collaborators, coverUrl, audioName, trialStrategy, thumbOffset, userTags |
+| `FacebookParams` | format (`post`, `story`, `reel`), title, firstComment, pageId, link, altText, madeWithAi, countries |
+| `InstagramParams` | format (`post`, `reel`, `story`), firstComment, collaborators, coverUrl, coverFile, audioName, audioId, audioVolume, videoVolume, stripAudio, trialStrategy (`MANUAL`, `SS_PERFORMANCE`), thumbOffset, userTags, altText, madeWithAi |
 | `InstagramUserTag` | username, x, y, mediaIndex |
-| `TikTokParams` | format (`video`, `image`), privacyStatus, photoCoverIndex, autoAddMusic, madeWithAi, disableComment, disableDuet, disableStitch, brandContentToggle, brandOrganicToggle |
-| `LinkedInParams` | format (`post`), organizationId |
-| `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl, madeForKids, tags, categoryId, containsSyntheticMedia |
-| `PinterestParams` | format (`pin`), title, boardId, destinationLink, coverUrl, thumbOffset |
-| `ThreadsParams` | format (`post`) |
-| `TwitterParams` | format (`post`, `poll`), pollOptions (2-4 choices, max 25 chars each; required for `poll`), pollDurationMinutes (5-10080; required for `poll`) |
-| `BlueskyParams` | format (`post`) |
+| `TikTokParams` | format (`video`, `image`), privacyStatus, photoCoverIndex, autoAddMusic, madeWithAi, disableComment, disableDuet, disableStitch, brandContentToggle, brandOrganicToggle, uploadAsDraft, coverUrl, coverFile, thumbOffset |
+| `LinkedInParams` | format (`post`, `poll`), organizationId, reshareUrn, altText, countries, pollQuestion, pollOptions (2-4), pollDurationDays (1, 3, 7, 14) |
+| `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl, coverFile, madeForKids, tags, categoryId, containsSyntheticMedia |
+| `PinterestParams` | format (`pin`), title, boardId, destinationLink, coverUrl, coverFile, thumbOffset, altText |
+| `ThreadsParams` | format (`post`), altText, topicTag |
+| `TwitterParams` | format (`post`, `poll`), altText, pollOptions (2-4 choices, max 25 chars each; required for `poll`), pollDurationMinutes (5-10080; required for `poll`) |
+| `BlueskyParams` | format (`post`), altText |
 | `TelegramParams` | format (`post`), chatId (required), parseMode (`HTML`, `MarkdownV2`), disableLinkPreview, disableNotification |
 
 #### Instagram user tags
@@ -1043,7 +1479,11 @@ publish time.
 
 Wrap them in `PlatformParams` when passing to `posts().create()`. Telegram requires a `chatId` per post — list channels with `client.profiles().placements(profileId)`.
 
-Supported platforms: facebook, instagram, tiktok, linkedin, youtube, twitter, threads, pinterest, bluesky, telegram, google_business.
+`altText` takes a single `String` or a `List<String>` with one entry per media item.
+`coverFile` takes a local path — uploaded with the post, switching the request to multipart
+even without `mediaFiles` — or a base64 `data:` URL, sent as-is.
+
+Supported platforms: facebook, instagram, tiktok, linkedin, youtube, twitter, threads, pinterest, bluesky, telegram, google_business, whatsapp.
 
 #### Google Business
 

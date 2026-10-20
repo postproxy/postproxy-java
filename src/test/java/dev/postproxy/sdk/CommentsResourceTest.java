@@ -3,6 +3,10 @@ package dev.postproxy.sdk;
 import dev.postproxy.sdk.model.AcceptedResponse;
 import dev.postproxy.sdk.model.Comment;
 import dev.postproxy.sdk.resource.CommentsResource;
+import dev.postproxy.sdk.model.MessageButton;
+import dev.postproxy.sdk.model.MessageElement;
+import dev.postproxy.sdk.model.QuickReply;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -319,5 +323,65 @@ class CommentsResourceTest {
         comments.create("post-1", "prof-1", "Nice", null, "key-42");
 
         assertEquals("key-42", mock.getRequests().get(0).idempotencyKey());
+    }
+
+    @Test
+    void editsComment() {
+        var mock = new MockPostProxyClient(Map.of("accepted", true), 200, null);
+        var comments = new CommentsResource(mock);
+
+        var result = comments.edit("post_1", "c_1", "prof_1", "Fixed typo");
+        assertTrue(result.accepted());
+
+        var req = mock.getRequests().get(0);
+        assertEquals("PATCH", req.method());
+        assertTrue(req.url().contains("/posts/post_1/comments/c_1?profile_id=prof_1"));
+        assertEquals(Map.of("body", "Fixed typo"), req.body());
+    }
+
+    @Test
+    void pinsAndUnpinsComment() {
+        var mock = new MockPostProxyClient(Map.of("accepted", true), 200, null);
+        var comments = new CommentsResource(mock);
+
+        comments.pin("post_1", "c_1", "prof_1");
+        comments.unpin("post_1", "c_1", "prof_1");
+
+        assertTrue(mock.getRequests().get(0).url().contains("/comments/c_1/pin?profile_id=prof_1"));
+        assertTrue(mock.getRequests().get(1).url().contains("/comments/c_1/unpin?profile_id=prof_1"));
+        assertTrue(mock.getRequests().stream().allMatch(r -> r.method().equals("POST")));
+    }
+
+    @Test
+    void sendsInteractiveElementsInPrivateReply() {
+        var mock = new MockPostProxyClient(Map.of("id", "msg_1"), 200, null);
+        var comments = new CommentsResource(mock);
+
+        comments.privateReply("post_1", "c_1", "prof_1", "",
+                List.of(new QuickReply("More", "MORE")), null, null,
+                List.of(new MessageElement("Sneaker", null, "https://img.test/s.jpg",
+                        List.of(MessageButton.webUrl("Buy", "https://shop.test")))),
+                null);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = new ObjectMapper().convertValue(mock.getRequests().get(0).body(), Map.class);
+        assertEquals(Map.of(
+                "text", "",
+                "quick_replies", List.of(Map.of("title", "More", "payload", "MORE")),
+                "elements", List.of(Map.of(
+                        "title", "Sneaker",
+                        "image_url", "https://img.test/s.jpg",
+                        "buttons", List.of(Map.of("type", "web_url", "title", "Buy", "url", "https://shop.test"))))
+        ), body);
+    }
+
+    @Test
+    void filtersBulkCommentsByPlacement() {
+        var mock = new MockPostProxyClient(Map.of("total", 0, "page", 1, "per_page", 20, "data", List.of()), 200, null);
+        var comments = new CommentsResource(mock);
+
+        comments.listAll(null, null, "page_1", null, null, null, null, null);
+
+        assertTrue(mock.getRequests().get(0).url().contains("placement_id=page_1"));
     }
 }

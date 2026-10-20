@@ -65,6 +65,15 @@ public class MessagesResource {
         if (params.quickReplies() != null) body.put("quick_replies", params.quickReplies());
         if (params.buttons() != null) body.put("buttons", params.buttons());
         if (params.card() != null) body.put("card", params.card());
+        if (params.elements() != null) body.put("elements", params.elements());
+        if (params.template() != null) body.put("template", params.template());
+        if (params.interactive() != null) body.put("interactive", params.interactive());
+        if (params.location() != null) body.put("location", params.location());
+        if (params.contacts() != null) body.put("contacts", params.contacts());
+        if (params.category() != null) body.put("category", params.category());
+        if (params.linkPreview() != null) body.put("link_preview", params.linkPreview());
+        if (params.voiceNote() != null) body.put("voice_note", params.voiceNote());
+        if (params.filename() != null) body.put("filename", params.filename());
 
         return client.post("/api/chats/" + chatId + "/messages", query, body, new TypeReference<>() {}, params.idempotencyKey());
     }
@@ -74,6 +83,8 @@ public class MessagesResource {
         if (params.body() != null) fields.put("body", params.body());
         if (params.tag() != null) fields.put("tag", params.tag());
         if (params.replyToExternalId() != null) fields.put("reply_to_external_id", params.replyToExternalId());
+        if (params.voiceNote() != null) fields.put("voice_note", params.voiceNote().toString());
+        if (params.filename() != null) fields.put("filename", params.filename());
         if (params.media() != null && !params.media().isEmpty()) {
             fields.put("media[]", params.media());
         }

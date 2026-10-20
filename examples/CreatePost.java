@@ -1,5 +1,6 @@
 import dev.postproxy.sdk.PostProxy;
 import dev.postproxy.sdk.model.InstagramFormat;
+import dev.postproxy.sdk.model.TikTokFormat;
 import dev.postproxy.sdk.model.TikTokPrivacy;
 import dev.postproxy.sdk.model.TwitterFormat;
 import dev.postproxy.sdk.param.*;
@@ -102,6 +103,20 @@ public class CreatePost {
                                 .build());
                 System.out.println(
                                 "Thread post: " + threadPost.id() + " (" + threadPost.thread().size() + " children)");
+
+                // TikTok video with a custom cover uploaded from disk
+                var coverPost = client.posts().create(CreatePostParams.builder()
+                                .body("Behind the scenes")
+                                .profiles(List.of("tiktok"))
+                                .media(List.of("https://example.com/bts.mp4"))
+                                .platforms(PlatformParams.builder()
+                                                .tiktok(TikTokParams.builder()
+                                                                .format(TikTokFormat.VIDEO)
+                                                                .coverFile("./cover.jpg")
+                                                                .build())
+                                                .build())
+                                .build());
+                System.out.println("Cover post: " + coverPost.id());
 
                 // Delete a post
                 var deleted = client.posts().delete(post.id());

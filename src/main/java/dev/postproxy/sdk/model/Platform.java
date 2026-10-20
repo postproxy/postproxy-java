@@ -13,7 +13,8 @@ public enum Platform {
     PINTEREST("pinterest"),
     BLUESKY("bluesky"),
     TELEGRAM("telegram"),
-    GOOGLE_BUSINESS("google_business");
+    GOOGLE_BUSINESS("google_business"),
+    WHATSAPP("whatsapp");
 
     private final String value;
 

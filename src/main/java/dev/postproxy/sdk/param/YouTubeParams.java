@@ -12,6 +12,9 @@ public record YouTubeParams(
         @JsonProperty("title") String title,
         @JsonProperty("privacy_status") YouTubePrivacy privacyStatus,
         @JsonProperty("cover_url") String coverUrl,
+        // Local path to a cover image, uploaded with the post; a base64 data URL
+        // ("data:image/jpeg;base64,...") is sent as-is.
+        @JsonProperty("cover_file") String coverFile,
         @JsonProperty("made_for_kids") Boolean madeForKids,
         @JsonProperty("tags") List<String> tags,
         @JsonProperty("category_id") String categoryId,
@@ -26,6 +29,7 @@ public record YouTubeParams(
         private String title;
         private YouTubePrivacy privacyStatus;
         private String coverUrl;
+        private String coverFile;
         private Boolean madeForKids;
         private List<String> tags;
         private String categoryId;
@@ -35,13 +39,14 @@ public record YouTubeParams(
         public Builder title(String title) { this.title = title; return this; }
         public Builder privacyStatus(YouTubePrivacy privacyStatus) { this.privacyStatus = privacyStatus; return this; }
         public Builder coverUrl(String coverUrl) { this.coverUrl = coverUrl; return this; }
+        public Builder coverFile(String coverFile) { this.coverFile = coverFile; return this; }
         public Builder madeForKids(Boolean madeForKids) { this.madeForKids = madeForKids; return this; }
         public Builder tags(List<String> tags) { this.tags = tags; return this; }
         public Builder categoryId(String categoryId) { this.categoryId = categoryId; return this; }
         public Builder containsSyntheticMedia(Boolean containsSyntheticMedia) { this.containsSyntheticMedia = containsSyntheticMedia; return this; }
 
         public YouTubeParams build() {
-            return new YouTubeParams(format, title, privacyStatus, coverUrl, madeForKids, tags, categoryId, containsSyntheticMedia);
+            return new YouTubeParams(format, title, privacyStatus, coverUrl, coverFile, madeForKids, tags, categoryId, containsSyntheticMedia);
         }
     }
 }

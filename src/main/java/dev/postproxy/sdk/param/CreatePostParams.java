@@ -6,7 +6,8 @@ import java.util.List;
 public record CreatePostParams(
         String body,
         List<String> profiles,
-        List<String> media,
+        /** URL strings and/or {@link MediaInput} items. */
+        List<Object> media,
         List<Path> mediaFiles,
         PlatformParams platforms,
         List<ThreadChildInput> thread,
@@ -16,7 +17,9 @@ public record CreatePostParams(
         String queuePriority,
         String profileGroupId,
         /** Optional Idempotency-Key: retrying with the same key replays the original response. */
-        @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey
+        @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey,
+        /** Publish even if an identical post was just submitted (skips the 409). Sent as {@code X-Skip-Duplicate-Check}. */
+        Boolean skipDuplicateCheck
 ) {
     public static Builder builder() {
         return new Builder();
@@ -25,7 +28,7 @@ public record CreatePostParams(
     public static class Builder {
         private String body;
         private List<String> profiles;
-        private List<String> media;
+        private List<Object> media;
         private List<Path> mediaFiles;
         private PlatformParams platforms;
         private List<ThreadChildInput> thread;
@@ -35,10 +38,12 @@ public record CreatePostParams(
         private String queuePriority;
         private String profileGroupId;
         private String idempotencyKey;
+        private Boolean skipDuplicateCheck;
 
         public Builder body(String body) { this.body = body; return this; }
         public Builder profiles(List<String> profiles) { this.profiles = profiles; return this; }
-        public Builder media(List<String> media) { this.media = media; return this; }
+        /** Each item is a URL string or a {@link MediaInput}. */
+        public Builder media(List<?> media) { this.media = MediaInput.normalize(media); return this; }
         public Builder mediaFiles(List<Path> mediaFiles) { this.mediaFiles = mediaFiles; return this; }
         public Builder platforms(PlatformParams platforms) { this.platforms = platforms; return this; }
         public Builder thread(List<ThreadChildInput> thread) { this.thread = thread; return this; }
@@ -48,11 +53,12 @@ public record CreatePostParams(
         public Builder queuePriority(String queuePriority) { this.queuePriority = queuePriority; return this; }
         public Builder profileGroupId(String profileGroupId) { this.profileGroupId = profileGroupId; return this; }
         public Builder idempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; return this; }
+        public Builder skipDuplicateCheck(Boolean skipDuplicateCheck) { this.skipDuplicateCheck = skipDuplicateCheck; return this; }
 
         public CreatePostParams build() {
             if (body == null) throw new IllegalArgumentException("body is required");
             if (profiles == null || profiles.isEmpty()) throw new IllegalArgumentException("profiles is required");
-            return new CreatePostParams(body, profiles, media, mediaFiles, platforms, thread, scheduledAt, draft, queueId, queuePriority, profileGroupId, idempotencyKey);
+            return new CreatePostParams(body, profiles, media, mediaFiles, platforms, thread, scheduledAt, draft, queueId, queuePriority, profileGroupId, idempotencyKey, skipDuplicateCheck);
         }
     }
 }

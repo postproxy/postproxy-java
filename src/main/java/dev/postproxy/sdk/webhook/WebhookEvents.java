@@ -70,6 +70,28 @@ public final class WebhookEvents {
         return convert(event.data(), ReactionEventData.class);
     }
 
+    /** For {@code placement.orphaned}, {@code placement.restored}, {@code placement.name_status_updated} and {@code placement.quality_updated}. */
+    public static PlacementEventData asPlacementEvent(WebhookEvent event) {
+        return convert(event.data(), PlacementEventData.class);
+    }
+
+    public static PlacementsSyncedData asPlacementsSynced(WebhookEvent event) {
+        return convert(event.data(), PlacementsSyncedData.class);
+    }
+
+    public static ReferralEventData asReferral(WebhookEvent event) {
+        return convert(event.data(), ReferralEventData.class);
+    }
+
+    /** For {@code message_template.status_updated} and {@code message_template.category_updated}. */
+    public static MessageTemplateEventData asMessageTemplateEvent(WebhookEvent event) {
+        return convert(event.data(), MessageTemplateEventData.class);
+    }
+
+    public static WhatsAppAutomaticEventData asWhatsAppAutomaticEvent(WebhookEvent event) {
+        return convert(event.data(), WhatsAppAutomaticEventData.class);
+    }
+
     private static <T> T convert(JsonNode data, Class<T> klass) {
         if (data == null) return null;
         try {

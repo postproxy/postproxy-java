@@ -2,6 +2,7 @@ package dev.postproxy.sdk;
 
 import dev.postproxy.sdk.model.Platform;
 import dev.postproxy.sdk.resource.ProfileGroupsResource;
+import dev.postproxy.sdk.model.ConnectionOnboarding;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -71,5 +72,36 @@ class ProfileGroupsResourceTest {
         var body = (Map<String, Object>) req.body();
         assertEquals("instagram", body.get("platform"));
         assertEquals("https://callback.example.com", body.get("redirect_url"));
+    }
+
+    @Test
+    void passesOnboardingAndRefreshConnection() {
+        var mock = new MockPostProxyClient(Map.of("url", "https://x", "success", true), 200, null);
+        var groups = new ProfileGroupsResource(mock);
+
+        groups.initializeConnection("pg_1", Platform.INSTAGRAM, "https://app.test/cb",
+                ConnectionOnboarding.FACEBOOK, true);
+
+        assertEquals(Map.of(
+                "platform", "instagram",
+                "redirect_url", "https://app.test/cb",
+                "onboarding", "facebook",
+                "refresh_connection", true
+        ), mock.getRequests().get(0).body());
+    }
+
+    @Test
+    void connectsWhatsAppViaBusinessApp() {
+        var mock = new MockPostProxyClient(Map.of("url", "https://x", "success", true), 200, null);
+        var groups = new ProfileGroupsResource(mock);
+
+        groups.initializeConnection("pg_1", Platform.WHATSAPP, "https://app.test/cb",
+                ConnectionOnboarding.BUSINESS_APP, null);
+
+        assertEquals(Map.of(
+                "platform", "whatsapp",
+                "redirect_url", "https://app.test/cb",
+                "onboarding", "business_app"
+        ), mock.getRequests().get(0).body());
     }
 }

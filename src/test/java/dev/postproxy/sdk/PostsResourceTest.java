@@ -15,6 +15,17 @@ import dev.postproxy.sdk.model.PostStatus;
 import dev.postproxy.sdk.model.TikTokPrivacy;
 import dev.postproxy.sdk.model.TwitterFormat;
 import dev.postproxy.sdk.resource.PostsResource;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.postproxy.sdk.model.InstagramTrialStrategy;
+import dev.postproxy.sdk.model.LinkedInFormat;
+import dev.postproxy.sdk.model.TikTokFormat;
+import dev.postproxy.sdk.param.FacebookParams;
+import dev.postproxy.sdk.param.LinkedInParams;
+import dev.postproxy.sdk.param.MediaInput;
+import dev.postproxy.sdk.param.PinterestParams;
+import dev.postproxy.sdk.param.ThreadsParams;
+import dev.postproxy.sdk.param.UpdatePostParams;
+import dev.postproxy.sdk.param.YouTubeParams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -494,5 +505,158 @@ class PostsResourceTest {
         assertEquals(0.5, params.userTags().get(0).x());
         assertNull(params.userTags().get(2).x());
         assertEquals(2, params.userTags().get(2).mediaIndex());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> jsonBody(MockPostProxyClient mock) {
+        return new ObjectMapper().convertValue(mock.getRequests().get(0).body(), Map.class);
+    }
+
+    @Test
+    void acceptsUrlObjectMediaItems() {
+        var mock = new MockPostProxyClient(Map.of("id", "p"), 200, null);
+        new PostsResource(mock).create(CreatePostParams.builder()
+                .body("hi").profiles(List.of("prof_1"))
+                .media(List.of("https://a.test/1.jpg", MediaInput.of("https://a.test/2.jpg")))
+                .build());
+
+        assertEquals(List.of("https://a.test/1.jpg", Map.of("url", "https://a.test/2.jpg")),
+                jsonBody(mock).get("media"));
+    }
+
+    @Test
+    void rejectsUnknownMediaItems() {
+        assertThrows(IllegalArgumentException.class, () -> CreatePostParams.builder().media(List.of(42)));
+    }
+
+    @Test
+    void sendsNewPlatformParamsInJson() {
+        var mock = new MockPostProxyClient(Map.of("id", "p"), 200, null);
+        new PostsResource(mock).create(CreatePostParams.builder()
+                .body("hi").profiles(List.of("prof_1"))
+                .platforms(PlatformParams.builder()
+                        .facebook(FacebookParams.builder().link("https://acme.test").countries(List.of("US", "CA")).build())
+                        .instagram(InstagramParams.builder().format(InstagramFormat.REEL).audioId("123")
+                                .audioVolume(40).videoVolume(80).trialStrategy(InstagramTrialStrategy.MANUAL)
+                                .madeWithAi(true).build())
+                        .linkedin(LinkedInParams.builder().format(LinkedInFormat.POLL).organizationId("1")
+                                .pollQuestion("Tabs or spaces?").pollOptions(List.of("Tabs", "Spaces"))
+                                .pollDurationDays(3).build())
+                        .threads(ThreadsParams.builder().topicTag("Coffee").altText("A cup").build())
+                        .tiktok(TikTokParams.builder().format(TikTokFormat.VIDEO).uploadAsDraft(true)
+                                .coverUrl("https://a.test/c.jpg").build())
+                        .twitter(TwitterParams.builder().altText(List.of("one", "two")).build())
+                        .build())
+                .build());
+
+        assertEquals(Map.of(
+                "facebook", Map.of("link", "https://acme.test", "countries", List.of("US", "CA")),
+                "instagram", Map.of("format", "reel", "audio_id", "123", "audio_volume", 40, "video_volume", 80,
+                        "trial_strategy", "MANUAL", "made_with_ai", true),
+                "linkedin", Map.of("format", "poll", "organization_id", "1", "poll_question", "Tabs or spaces?",
+                        "poll_options", List.of("Tabs", "Spaces"), "poll_duration_days", 3),
+                "threads", Map.of("topic_tag", "Coffee", "alt_text", "A cup"),
+                "tiktok", Map.of("format", "video", "upload_as_draft", true, "cover_url", "https://a.test/c.jpg"),
+                "twitter", Map.of("alt_text", List.of("one", "two"))
+        ), jsonBody(mock).get("platforms"));
+    }
+
+    @Test
+    void sendsSkipDuplicateCheckHeader() {
+        var mock = new MockPostProxyClient(Map.of("id", "p"), 200, null);
+        var posts = new PostsResource(mock);
+
+        posts.create(CreatePostParams.builder().body("hello").profiles(List.of("profile-1"))
+                .skipDuplicateCheck(true).build());
+        posts.create(CreatePostParams.builder().body("hello").profiles(List.of("profile-1")).build());
+
+        assertEquals("true", mock.getRequests().get(0).headers().get("X-Skip-Duplicate-Check"));
+        assertNull(mock.getRequests().get(1).headers().get("X-Skip-Duplicate-Check"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void uploadsLocalCoverFileAsMultipartWithoutMediaFiles(@TempDir Path tempDir) throws IOException {
+        Path cover = tempDir.resolve("cover.jpg");
+        Files.write(cover, new byte[]{1, 2, 3});
+        var mock = new MockPostProxyClient(Map.of("id", "p"), 200, null);
+
+        new PostsResource(mock).create(CreatePostParams.builder()
+                .body("New video").profiles(List.of("tt-profile"))
+                .media(List.of("https://a.test/clip.mp4"))
+                .platforms(PlatformParams.builder()
+                        .tiktok(TikTokParams.builder().format(TikTokFormat.VIDEO).coverFile(cover.toString()).build())
+                        .build())
+                .skipDuplicateCheck(true)
+                .build());
+
+        var req = mock.getRequests().get(0);
+        var body = (Map<String, Object>) req.body();
+        var fileGroups = (Map<String, List<Path>>) body.get("__fileGroups");
+        assertEquals(List.of(cover), fileGroups.get("platforms[tiktok][cover_file]"));
+        assertFalse(body.containsKey("platforms[tiktok][cover_file]"));
+        assertEquals("video", body.get("platforms[tiktok][format]"));
+        assertEquals(List.of("https://a.test/clip.mp4"), body.get("media[]"));
+        assertEquals("true", req.headers().get("X-Skip-Duplicate-Check"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void uploadsLocalCoverFileOnUpdate() {
+        var mock = new MockPostProxyClient(Map.of("id", "p"), 200, null);
+
+        new PostsResource(mock).update("post-1", UpdatePostParams.builder()
+                .platforms(PlatformParams.builder()
+                        .youtube(YouTubeParams.builder().coverFile("./cover.png").build())
+                        .build())
+                .build());
+
+        var req = mock.getRequests().get(0);
+        assertEquals("PATCH", req.method());
+        var fileGroups = (Map<String, List<Path>>) ((Map<String, Object>) req.body()).get("__fileGroups");
+        assertEquals(List.of(Path.of("./cover.png")), fileGroups.get("platforms[youtube][cover_file]"));
+    }
+
+    @Test
+    void sendsDataUrlCoverFileAsJson() {
+        var mock = new MockPostProxyClient(Map.of("id", "p"), 200, null);
+        String dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+
+        new PostsResource(mock).create(CreatePostParams.builder()
+                .body("Pin").profiles(List.of("pin-profile"))
+                .media(List.of("https://a.test/v.mp4"))
+                .platforms(PlatformParams.builder()
+                        .pinterest(PinterestParams.builder().boardId("b1").coverFile(dataUrl).build())
+                        .build())
+                .build());
+
+        var body = jsonBody(mock);
+        assertFalse(body.containsKey("__fileGroups"));
+        assertEquals(Map.of("pinterest", Map.of("board_id", "b1", "cover_file", dataUrl)), body.get("platforms"));
+    }
+
+    @Test
+    void parsesNewPostAndPlatformResultFields() {
+        var mock = new MockPostProxyClient(Map.of(
+                "id", "p1", "body", "hi", "status", "processed", "draft", false, "source", "imported",
+                "created_at", "2026-10-01T00:00:00Z", "media", List.of(),
+                "platforms", List.of(Map.of(
+                        "platform", "tiktok", "profile_id", "prof_1", "profile_name", "Acme",
+                        "status", "published", "permalink", "https://tiktok.test/v/1",
+                        "attachments", List.of(Map.of("id", "a1", "type", "cover", "status", "ready",
+                                "url", "https://cdn.test/c.jpg")))),
+                "thread", List.of(Map.of("id", "t1", "body", "reply", "media", List.of(),
+                        "platforms", List.of(Map.of("platform", "twitter", "status", "published"))))
+        ), 200, null);
+
+        var post = new PostsResource(mock).get("p1");
+        assertEquals("imported", post.source());
+        assertFalse(post.draft());
+        var result = post.platforms().get(0);
+        assertEquals("prof_1", result.profileId());
+        assertEquals("Acme", result.profileName());
+        assertEquals("https://tiktok.test/v/1", result.permalink());
+        assertEquals("cover", result.attachments().get(0).type());
+        assertEquals(Platform.TWITTER, post.thread().get(0).platforms().get(0).platform());
     }
 }

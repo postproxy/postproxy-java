@@ -12,6 +12,11 @@ import dev.postproxy.sdk.param.ListMessagesParams;
 import dev.postproxy.sdk.param.ReactParams;
 import dev.postproxy.sdk.param.SendMessageParams;
 import dev.postproxy.sdk.resource.MessagesResource;
+import dev.postproxy.sdk.model.MessageElement;
+import dev.postproxy.sdk.model.MessageLocation;
+import dev.postproxy.sdk.model.MessageTemplateInput;
+import dev.postproxy.sdk.model.TemplateButtonParam;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
@@ -316,5 +321,118 @@ class MessagesResourceTest {
         var req = mock.getRequests().get(0);
         assertEquals("DELETE", req.method());
         assertTrue(req.url().contains("/messages/msg_111/unreact"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> jsonBody(MockPostProxyClient mock, int index) {
+        return new ObjectMapper().convertValue(mock.getRequests().get(index).body(), Map.class);
+    }
+
+    @Test
+    void sendsCarousel() {
+        var mock = new MockPostProxyClient(Map.of("id", "msg_1"), 200, null);
+        var messages = new MessagesResource(mock);
+
+        messages.send("chat_1", SendMessageParams.builder()
+                .elements(List.of(
+                        new MessageElement("Red", null, "https://img.test/r.jpg", null),
+                        new MessageElement("Blue", "Restocked", null,
+                                List.of(MessageButton.postback("Pick", "BLUE")))))
+                .build());
+
+        assertEquals(Map.of("elements", List.of(
+                Map.of("title", "Red", "image_url", "https://img.test/r.jpg"),
+                Map.of("title", "Blue", "subtitle", "Restocked",
+                        "buttons", List.of(Map.of("type", "postback", "title", "Pick", "payload", "BLUE")))
+        )), jsonBody(mock, 0));
+    }
+
+    @Test
+    void sendsWhatsAppTemplate() {
+        var mock = new MockPostProxyClient(Map.of("id", "msg_1"), 200, null);
+        var messages = new MessagesResource(mock);
+
+        messages.send("chat_1", SendMessageParams.builder()
+                .template(MessageTemplateInput.builder()
+                        .name("order_update")
+                        .language("en_US")
+                        .variables(List.of("#1234"))
+                        .buttonParams(List.of(TemplateButtonParam.of(0, "url", Map.of("text", "1234"))))
+                        .build())
+                .build());
+
+        assertEquals(Map.of("template", Map.of(
+                "name", "order_update",
+                "language", "en_US",
+                "variables", List.of("#1234"),
+                "button_params", List.of(Map.of("index", 0, "sub_type", "url", "text", "1234"))
+        )), jsonBody(mock, 0));
+    }
+
+    @Test
+    void sendsWhatsAppLocationContactsAndOptions() {
+        var mock = new MockPostProxyClient(Map.of("id", "msg_1"), 200, null);
+        var messages = new MessagesResource(mock);
+
+        messages.send("chat_1", SendMessageParams.builder()
+                .location(new MessageLocation(52.5, 13.4, "Store", null)).build());
+        messages.send("chat_1", SendMessageParams.builder()
+                .contacts(List.of(Map.of("name", Map.of("formatted_name", "Jane")))).build());
+        messages.send("chat_1", SendMessageParams.builder()
+                .body("Your code is 1234").category("utility").linkPreview(false).build());
+        messages.send("chat_1", SendMessageParams.builder()
+                .media(List.of("https://files.test/a.pdf")).filename("invoice.pdf").build());
+        messages.send("chat_1", SendMessageParams.builder()
+                .media(List.of("https://files.test/a.ogg")).voiceNote(true).build());
+        messages.send("chat_1", SendMessageParams.builder()
+                .interactive(Map.of("type", "button", "body", Map.of("text", "Pick"))).build());
+
+        assertEquals(Map.of("location", Map.of("latitude", 52.5, "longitude", 13.4, "name", "Store")), jsonBody(mock, 0));
+        assertEquals(Map.of("contacts", List.of(Map.of("name", Map.of("formatted_name", "Jane")))), jsonBody(mock, 1));
+        assertEquals(Map.of("body", "Your code is 1234", "category", "utility", "link_preview", false), jsonBody(mock, 2));
+        assertEquals(Map.of("media", List.of("https://files.test/a.pdf"), "filename", "invoice.pdf"), jsonBody(mock, 3));
+        assertEquals(Map.of("media", List.of("https://files.test/a.ogg"), "voice_note", true), jsonBody(mock, 4));
+        assertEquals(Map.of("interactive", Map.of("type", "button", "body", Map.of("text", "Pick"))), jsonBody(mock, 5));
+    }
+
+    @Test
+    void sendsVoiceNoteAndFilenameAsMultipartFields() {
+        var mock = new MockPostProxyClient(Map.of("id", "msg_1"), 200, null);
+        var messages = new MessagesResource(mock);
+
+        messages.send("chat_1", SendMessageParams.builder()
+                .mediaFiles(List.of(Path.of("./note.ogg"))).voiceNote(true).filename("note.ogg").build());
+
+        @SuppressWarnings("unchecked")
+        var body = (Map<String, Object>) mock.getRequests().get(0).body();
+        assertEquals("true", body.get("voice_note"));
+        assertEquals("note.ogg", body.get("filename"));
+    }
+
+    @Test
+    void parsesWhatsAppMessageFields() {
+        var mock = new MockPostProxyClient(Map.ofEntries(
+                Map.entry("id", "msg_1"),
+                Map.entry("chat_id", "chat_1"),
+                Map.entry("direction", "outbound"),
+                Map.entry("status", "published"),
+                Map.entry("location", Map.of("latitude", 52.5, "longitude", 13.4)),
+                Map.entry("template", Map.of("id", "tpl_1", "name", "order_update", "language", "en_US",
+                        "variables", List.of("#1"))),
+                Map.entry("elements", List.of(Map.of("title", "Red"))),
+                Map.entry("story_reply", Map.of("url", "https://story.test")),
+                Map.entry("error_details", Map.of("platform_error_code", "131047")),
+                Map.entry("reactions", List.of()),
+                Map.entry("attachments", List.of()),
+                Map.entry("created_at", "2026-10-01T00:00:00Z")
+        ), 200, null);
+
+        var message = new MessagesResource(mock).get("msg_1");
+        assertEquals(52.5, message.location().latitude());
+        assertEquals("order_update", message.template().name());
+        assertEquals(List.of("#1"), message.template().variables());
+        assertEquals("Red", message.elements().get(0).title());
+        assertEquals("https://story.test", message.storyReply().get("url"));
+        assertNotNull(message.errorDetails());
     }
 }

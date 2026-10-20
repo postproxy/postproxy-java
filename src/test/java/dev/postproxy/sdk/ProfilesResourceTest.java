@@ -4,6 +4,9 @@ import dev.postproxy.sdk.exception.ConflictException;
 import dev.postproxy.sdk.model.PostSyncStatus;
 import dev.postproxy.sdk.model.PostSyncTrigger;
 import dev.postproxy.sdk.resource.ProfilesResource;
+import dev.postproxy.sdk.model.DailyStatsAttribution;
+import dev.postproxy.sdk.model.InstagramAudioType;
+import dev.postproxy.sdk.model.ProfileInactiveReason;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -198,5 +201,148 @@ class ProfilesResourceTest {
 
         assertEquals(PostSyncStatus.COMPLETED, sync.status());
         assertTrue(mock.getRequests().get(0).url().contains("/profiles/prof-1/post_syncs/sync456def"));
+    }
+
+    @Test
+    void fetchesDailyStatsWithAttribution() {
+        var mock = new MockPostProxyClient(Map.of("data", Map.of(
+                "profile_id", "p1", "attribution", "publish",
+                "records", List.of(Map.of("date", "2026-09-01", "impressions", 10, "platform_stats", Map.of())),
+                "metrics", Map.of())), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var result = profiles.dailyStats("p1", "pl1", "2026-09-01", "2026-09-30", DailyStatsAttribution.PUBLISH, null);
+        var record = result.data().records().get(0);
+        assertEquals("2026-09-01", record.date());
+        assertEquals(10, ((Number) record.metric("impressions")).intValue());
+        assertFalse(record.metrics().containsKey("date"));
+        assertEquals(DailyStatsAttribution.PUBLISH, result.data().attribution());
+
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("/api/profiles/p1/daily_stats?"));
+        assertTrue(url.contains("attribution=publish"));
+        assertTrue(url.contains("placement_id=pl1"));
+    }
+
+    @Test
+    void fetchesFollowerHistory() {
+        var mock = new MockPostProxyClient(Map.of("data", Map.of("records", List.of(Map.of(
+                "date", "2026-09-01", "followers_gained", 3, "followers_total", 120)))), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var result = profiles.followerHistory("p1", null, "2026-09-01", null, null);
+        assertEquals(120, result.data().records().get(0).followersTotal());
+        assertNull(result.data().records().get(0).followersLost());
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("/api/profiles/p1/follower_history?"));
+        assertTrue(url.contains("from=2026-09-01"));
+    }
+
+    @Test
+    void fetchesParticipantStatus() {
+        var mock = new MockPostProxyClient(Map.of("is_verified_user", true, "fetched_at", "x"), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var result = profiles.participantStatus("p1", "igsid 1");
+        assertTrue(result.isVerifiedUser());
+        assertTrue(mock.getRequests().get(0).url().contains("/profiles/p1/participants/igsid%201"));
+    }
+
+    @Test
+    void resolvesLinkedInMention() {
+        var mock = new MockPostProxyClient(Map.of("urn", "urn:li:organization:1", "type", "organization",
+                "name", "Acme", "vanity_name", "acme"), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var result = profiles.resolveMention("p1", "https://www.linkedin.com/company/acme");
+        assertEquals("urn:li:organization:1", result.urn());
+        assertEquals("acme", result.vanityName());
+        assertTrue(mock.getRequests().get(0).url().contains("url=https://www.linkedin.com/company/acme"));
+    }
+
+    @Test
+    void searchesInstagramAudio() {
+        var mock = new MockPostProxyClient(Map.of("data", List.of(Map.of("id", "a1"))), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var result = profiles.instagramAvailableAudio("p1", InstagramAudioType.MUSIC, "summer", null);
+        assertEquals("a1", result.data().get(0).get("id"));
+        var url = mock.getRequests().get(0).url();
+        assertTrue(url.contains("/api/profiles/p1/instagram/available_audio?"));
+        assertTrue(url.contains("audio_type=music"));
+        assertTrue(url.contains("search_query=summer"));
+    }
+
+    @Test
+    void readsAndUpdatesFacebookPage() {
+        var mock = new MockPostProxyClient(Map.of("about", "Hi"), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var page = profiles.facebookPage("p1", "page_1", "about,website", null);
+        profiles.updateFacebookPage("p1", "page_1", Map.of("about", "New about"));
+
+        assertEquals("Hi", page.get("about"));
+        var read = mock.getRequests().get(0);
+        assertTrue(read.url().contains("page_id=page_1"));
+        assertTrue(read.url().contains("fields=about,website"));
+        var update = mock.getRequests().get(1);
+        assertEquals("PATCH", update.method());
+        assertTrue(update.url().contains("/profiles/p1/facebook/update_page"));
+        assertEquals(Map.of("about", "New about", "page_id", "page_1"), update.body());
+    }
+
+    @Test
+    void movesProfileToAnotherGroup() {
+        var mock = new MockPostProxyClient(Map.of("id", "p1", "inactive_reason", "network_taken"), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var profile = profiles.assignToGroup("p1", "pg_2");
+        assertEquals(ProfileInactiveReason.NETWORK_TAKEN, profile.inactiveReason());
+
+        var req = mock.getRequests().get(0);
+        assertEquals("PATCH", req.method());
+        assertTrue(req.url().contains("/profiles/p1/assign_to_group"));
+        assertEquals(Map.of("target_profile_group_id", "pg_2"), req.body());
+    }
+
+    @Test
+    void startsAndListsChatBackfills() {
+        var mock = new MockPostProxyClient(Map.of("id", "cs1", "status", "pending", "chats_seen", 0,
+                "messages_imported", 0), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var sync = profiles.backfillChats("p1", "2026-01-01T00:00:00Z");
+        assertEquals(PostSyncStatus.PENDING, sync.status());
+
+        mock = new MockPostProxyClient(Map.of("total", 0, "page", 1, "per_page", 5, "data", List.of()), 200, null);
+        profiles = new ProfilesResource(mock);
+        profiles.chatSyncs("p1", null, PostSyncStatus.RUNNING, null, 5, null);
+        var listUrl = mock.getRequests().get(0).url();
+        assertTrue(listUrl.contains("/profiles/p1/chat_syncs?"));
+        assertTrue(listUrl.contains("status=running"));
+        assertTrue(listUrl.contains("per_page=5"));
+    }
+
+    @Test
+    void fetchesSingleChatSync() {
+        var mock = new MockPostProxyClient(Map.of("id", "cs1", "status", "completed", "chats_seen", 4,
+                "messages_imported", 31), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var sync = profiles.chatSync("p1", "cs1");
+        assertEquals(31, sync.messagesImported());
+        assertTrue(mock.getRequests().get(0).url().contains("/profiles/p1/chat_syncs/cs1"));
+    }
+
+    @Test
+    void backfillChatsSendsFrom() {
+        var mock = new MockPostProxyClient(Map.of("id", "cs1"), 200, null);
+        new ProfilesResource(mock).backfillChats("p1", "2026-01-01T00:00:00Z", null, "idem");
+
+        var req = mock.getRequests().get(0);
+        assertEquals("POST", req.method());
+        assertTrue(req.url().contains("/profiles/p1/backfill_chats"));
+        assertEquals(Map.of("from", "2026-01-01T00:00:00Z"), req.body());
+        assertEquals("idem", req.idempotencyKey());
     }
 }

@@ -19,6 +19,7 @@ public record Comment(
         @JsonProperty("permalink") String permalink,
         @JsonProperty("platform_data") Object platformData,
         @JsonProperty("attachments") List<Attachment> attachments,
+        @JsonProperty("external_edited_at") String externalEditedAt,
         @JsonProperty("posted_at") String postedAt,
         @JsonProperty("created_at") String createdAt,
         @JsonProperty("replies") List<Comment> replies

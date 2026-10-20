@@ -4,6 +4,7 @@ import dev.postproxy.sdk.model.Platform;
 import dev.postproxy.sdk.param.CreateChatParams;
 import dev.postproxy.sdk.param.ListChatsParams;
 import dev.postproxy.sdk.resource.ChatsResource;
+import dev.postproxy.sdk.model.AcceptedResponse;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -135,5 +136,59 @@ class ChatsResourceTest {
         var req = mock.getRequests().get(0);
         assertEquals("DELETE", req.method());
         assertTrue(req.url().contains("/chats/chat_xyz789/archive"));
+    }
+
+    @Test
+    void createsWhatsAppChatOnPlacement() {
+        var mock = new MockPostProxyClient(MOCK_CHAT, 200, null);
+        var chats = new ChatsResource(mock);
+
+        chats.create("prof_wa", CreateChatParams.builder("15551234567").placementId("pn_1").build());
+
+        @SuppressWarnings("unchecked")
+        var body = (Map<String, Object>) mock.getRequests().get(0).body();
+        assertEquals(Map.of("participant_external_id", "15551234567", "placement_id", "pn_1"), body);
+    }
+
+    @Test
+    void marksChatRead() {
+        var mock = new MockPostProxyClient(MOCK_CHAT, 200, null);
+        var chats = new ChatsResource(mock);
+
+        chats.markRead("chat_xyz789");
+
+        var req = mock.getRequests().get(0);
+        assertEquals("POST", req.method());
+        assertTrue(req.url().contains("/chats/chat_xyz789/mark_read"));
+    }
+
+    @Test
+    void startsAndStopsTyping() {
+        var mock = new MockPostProxyClient(Map.of("accepted", true), 200, null);
+        var chats = new ChatsResource(mock);
+
+        AcceptedResponse started = chats.startTyping("chat_xyz789");
+        chats.stopTyping("chat_xyz789", null, "idem-1");
+
+        assertTrue(started.accepted());
+        assertTrue(mock.getRequests().get(0).url().contains("/chats/chat_xyz789/start_typing"));
+        assertTrue(mock.getRequests().get(1).url().contains("/chats/chat_xyz789/stop_typing"));
+        assertEquals("idem-1", mock.getRequests().get(1).idempotencyKey());
+    }
+
+    @Test
+    void parsesWhatsAppChatFields() {
+        var chat = new java.util.HashMap<>(MOCK_CHAT);
+        chat.put("platform", "whatsapp");
+        chat.put("external_placement_id", "pn_1");
+        chat.put("group", true);
+        chat.put("within_messaging_window", false);
+        var mock = new MockPostProxyClient(chat, 200, null);
+
+        var result = new ChatsResource(mock).get("chat_xyz789");
+        assertEquals(Platform.WHATSAPP, result.platform());
+        assertEquals("pn_1", result.externalPlacementId());
+        assertTrue(result.group());
+        assertFalse(result.withinMessagingWindow());
     }
 }

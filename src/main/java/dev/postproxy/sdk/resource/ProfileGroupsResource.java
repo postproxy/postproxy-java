@@ -48,9 +48,21 @@ public class ProfileGroupsResource {
      * {@link #connectTelegram(String, String)} respectively.
      */
     public ConnectionResponse initializeConnection(String id, Platform platform, String redirectUrl) {
+        return initializeConnection(id, platform, redirectUrl, null, null);
+    }
+
+    /**
+     * {@code onboarding} picks the flow: Instagram {@code INSTAGRAM} (default) or {@code FACEBOOK}
+     * (Facebook login — needed for reel music); WhatsApp {@code API} or {@code BUSINESS_APP}.
+     * {@code refreshConnection} re-authorizes an existing profile. Both may be null.
+     */
+    public ConnectionResponse initializeConnection(String id, Platform platform, String redirectUrl,
+                                                   ConnectionOnboarding onboarding, Boolean refreshConnection) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("platform", platform.getValue());
         if (redirectUrl != null) body.put("redirect_url", redirectUrl);
+        if (onboarding != null) body.put("onboarding", onboarding.getValue());
+        if (refreshConnection != null) body.put("refresh_connection", refreshConnection);
 
         return client.post("/api/profile_groups/" + id + "/initialize_connection", null, body, new TypeReference<>() {});
     }

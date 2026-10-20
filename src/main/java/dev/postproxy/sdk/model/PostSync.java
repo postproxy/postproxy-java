@@ -13,6 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record PostSync(
         @JsonProperty("id") String id,
         @JsonProperty("profile_id") String profileId,
+        @JsonProperty("placement_id") String placementId,
         @JsonProperty("kind") String kind,
         @JsonProperty("trigger") PostSyncTrigger trigger,
         @JsonProperty("status") PostSyncStatus status,

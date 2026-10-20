@@ -9,6 +9,11 @@ import dev.postproxy.sdk.resource.CommentsResource;
 import dev.postproxy.sdk.resource.ProfileCommentsResource;
 import dev.postproxy.sdk.resource.ChatsResource;
 import dev.postproxy.sdk.resource.MessagesResource;
+import dev.postproxy.sdk.resource.PlacementsResource;
+import dev.postproxy.sdk.resource.ApiKeysResource;
+import dev.postproxy.sdk.resource.GoogleBusinessResource;
+import dev.postproxy.sdk.resource.WhatsAppTemplatesResource;
+import dev.postproxy.sdk.resource.WhatsAppResource;
 
 public class PostProxy {
 
@@ -23,6 +28,11 @@ public class PostProxy {
     private final ProfileCommentsResource profileComments;
     private final ChatsResource chats;
     private final MessagesResource messages;
+    private final PlacementsResource placements;
+    private final ApiKeysResource apiKeys;
+    private final GoogleBusinessResource googleBusiness;
+    private final WhatsAppTemplatesResource whatsappTemplates;
+    private final WhatsAppResource whatsapp;
 
     private PostProxy(String apiKey, String baseUrl, String profileGroupId) {
         PostProxyClient client = new PostProxyClient(apiKey, baseUrl, profileGroupId);
@@ -35,6 +45,11 @@ public class PostProxy {
         this.profileComments = new ProfileCommentsResource(client);
         this.chats = new ChatsResource(client);
         this.messages = new MessagesResource(client);
+        this.placements = new PlacementsResource(client);
+        this.apiKeys = new ApiKeysResource(client);
+        this.googleBusiness = new GoogleBusinessResource(client);
+        this.whatsappTemplates = new WhatsAppTemplatesResource(client);
+        this.whatsapp = new WhatsAppResource(client);
     }
 
     public static Builder builder(String apiKey) {
@@ -75,6 +90,26 @@ public class PostProxy {
 
     public MessagesResource messages() {
         return messages;
+    }
+
+    public PlacementsResource placements() {
+        return placements;
+    }
+
+    public ApiKeysResource apiKeys() {
+        return apiKeys;
+    }
+
+    public GoogleBusinessResource googleBusiness() {
+        return googleBusiness;
+    }
+
+    public WhatsAppTemplatesResource whatsappTemplates() {
+        return whatsappTemplates;
+    }
+
+    public WhatsAppResource whatsapp() {
+        return whatsapp;
     }
 
     public static class Builder {

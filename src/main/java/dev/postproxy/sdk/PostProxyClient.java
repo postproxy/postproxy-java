@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.postproxy.sdk.exception.*;
+import dev.postproxy.sdk.model.MediaDownload;
 
 import java.io.IOException;
 import java.net.URI;
@@ -49,7 +50,26 @@ public class PostProxyClient {
     }
 
     public <T> T get(String path, Map<String, String> queryParams, TypeReference<T> type) {
-        return request("GET", path, queryParams, null, type, null);
+        return request("GET", path, queryParams, null, type, null, null);
+    }
+
+    /** GET returning the raw response body (e.g. a media file) instead of parsing JSON. */
+    public MediaDownload getRaw(String path, Map<String, String> queryParams) {
+        try {
+            HttpRequest request = baseRequest(buildUri(path, queryParams), null, null).GET().build();
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            int status = response.statusCode();
+            if (status >= 200 && status < 300) {
+                return new MediaDownload(response.body(),
+                        response.headers().firstValue("Content-Type").orElse(null));
+            }
+            String body = new String(response.body(), StandardCharsets.UTF_8);
+            throw errorFor(status, body, response.headers().firstValue("Retry-After").orElse(null));
+        } catch (PostProxyException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PostProxyException("Request failed: " + e.getMessage(), 0, null);
+        }
     }
 
     public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type) {
@@ -59,7 +79,13 @@ public class PostProxyClient {
     /** {@code idempotencyKey} is sent as the Idempotency-Key header when non-null. */
     public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
                       String idempotencyKey) {
-        return request("POST", path, queryParams, body, type, idempotencyKey);
+        return post(path, queryParams, body, type, idempotencyKey, null);
+    }
+
+    /** {@code headers} are extra request headers, e.g. {@code X-Skip-Duplicate-Check}. */
+    public <T> T post(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
+                      String idempotencyKey, Map<String, String> headers) {
+        return request("POST", path, queryParams, body, type, idempotencyKey, headers);
     }
 
     public <T> T patch(String path, Map<String, String> queryParams, Object body, TypeReference<T> type) {
@@ -69,7 +95,13 @@ public class PostProxyClient {
     /** {@code idempotencyKey} is sent as the Idempotency-Key header when non-null. */
     public <T> T patch(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
                        String idempotencyKey) {
-        return request("PATCH", path, queryParams, body, type, idempotencyKey);
+        return request("PATCH", path, queryParams, body, type, idempotencyKey, null);
+    }
+
+    /** {@code idempotencyKey} is sent as the Idempotency-Key header when non-null. */
+    public <T> T put(String path, Map<String, String> queryParams, Object body, TypeReference<T> type,
+                     String idempotencyKey) {
+        return request("PUT", path, queryParams, body, type, idempotencyKey, null);
     }
 
     public <T> T delete(String path, Map<String, String> queryParams, TypeReference<T> type) {
@@ -79,7 +111,7 @@ public class PostProxyClient {
     /** {@code idempotencyKey} is sent as the Idempotency-Key header when non-null. */
     public <T> T delete(String path, Map<String, String> queryParams, TypeReference<T> type,
                         String idempotencyKey) {
-        return request("DELETE", path, queryParams, null, type, idempotencyKey);
+        return request("DELETE", path, queryParams, null, type, idempotencyKey, null);
     }
 
     public <T> T postMultipart(String path, Map<String, String> queryParams,
@@ -90,29 +122,13 @@ public class PostProxyClient {
     public <T> T postMultipart(String path, Map<String, String> queryParams,
                                 Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
                                 String idempotencyKey) {
-        try {
-            String boundary = "----PostProxy" + UUID.randomUUID().toString().replace("-", "");
-            byte[] body = buildMultipartBody(boundary, fields, fileGroups);
+        return postMultipart(path, queryParams, fields, fileGroups, type, idempotencyKey, null);
+    }
 
-            URI uri = buildUri(path, queryParams);
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(uri)
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "application/json")
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary);
-            if (idempotencyKey != null) {
-                builder.header("Idempotency-Key", idempotencyKey);
-            }
-            HttpRequest request = builder.POST(HttpRequest.BodyPublishers.ofByteArray(body)).build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            return handleResponse(response, type);
-        } catch (PostProxyException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new PostProxyException("Request failed: " + e.getMessage(), 0, null);
-        }
+    public <T> T postMultipart(String path, Map<String, String> queryParams,
+                                Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
+                                String idempotencyKey, Map<String, String> headers) {
+        return multipart("POST", path, queryParams, fields, fileGroups, type, idempotencyKey, headers);
     }
 
     public <T> T patchMultipart(String path, Map<String, String> queryParams,
@@ -123,21 +139,20 @@ public class PostProxyClient {
     public <T> T patchMultipart(String path, Map<String, String> queryParams,
                                 Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
                                 String idempotencyKey) {
+        return multipart("PATCH", path, queryParams, fields, fileGroups, type, idempotencyKey, null);
+    }
+
+    private <T> T multipart(String method, String path, Map<String, String> queryParams,
+                            Map<String, Object> fields, Map<String, List<Path>> fileGroups, TypeReference<T> type,
+                            String idempotencyKey, Map<String, String> headers) {
         try {
             String boundary = "----PostProxy" + UUID.randomUUID().toString().replace("-", "");
             byte[] body = buildMultipartBody(boundary, fields, fileGroups);
 
-            URI uri = buildUri(path, queryParams);
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(uri)
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "application/json")
-                    .header("Content-Type", "multipart/form-data; boundary=" + boundary);
-            if (idempotencyKey != null) {
-                builder.header("Idempotency-Key", idempotencyKey);
-            }
-            HttpRequest request = builder.method("PATCH", HttpRequest.BodyPublishers.ofByteArray(body)).build();
+            HttpRequest request = baseRequest(buildUri(path, queryParams), idempotencyKey, headers)
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .method(method, HttpRequest.BodyPublishers.ofByteArray(body))
+                    .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return handleResponse(response, type);
@@ -149,26 +164,17 @@ public class PostProxyClient {
     }
 
     private <T> T request(String method, String path, Map<String, String> queryParams,
-                           Object body, TypeReference<T> type, String idempotencyKey) {
+                           Object body, TypeReference<T> type, String idempotencyKey, Map<String, String> headers) {
         try {
-            URI uri = buildUri(path, queryParams);
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(uri)
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept", "application/json");
-
-            if (idempotencyKey != null) {
-                builder.header("Idempotency-Key", idempotencyKey);
-            }
+            HttpRequest.Builder builder = baseRequest(buildUri(path, queryParams), idempotencyKey, headers);
 
             if (body != null) {
                 String json = objectMapper.writeValueAsString(body);
                 builder.header("Content-Type", "application/json")
                         .method(method, HttpRequest.BodyPublishers.ofString(json));
-            } else if ("POST".equals(method)) {
+            } else if ("POST".equals(method) || "PATCH".equals(method) || "PUT".equals(method)) {
                 builder.header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString("{}"));
+                        .method(method, HttpRequest.BodyPublishers.ofString("{}"));
             } else if ("DELETE".equals(method)) {
                 builder.DELETE();
             } else {
@@ -182,6 +188,21 @@ public class PostProxyClient {
         } catch (Exception e) {
             throw new PostProxyException("Request failed: " + e.getMessage(), 0, null);
         }
+    }
+
+    private HttpRequest.Builder baseRequest(URI uri, String idempotencyKey, Map<String, String> headers) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(uri)
+                .header("Authorization", "Bearer " + apiKey)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "application/json");
+        if (idempotencyKey != null) {
+            builder.header("Idempotency-Key", idempotencyKey);
+        }
+        if (headers != null) {
+            headers.forEach(builder::header);
+        }
+        return builder;
     }
 
     private URI buildUri(String path, Map<String, String> queryParams) {
@@ -226,6 +247,18 @@ public class PostProxyClient {
             }
         }
 
+        throw errorFor(status, responseBody, response.headers().firstValue("Retry-After").orElse(null));
+    }
+
+    private PostProxyException errorFor(int status, String responseBody, String retryAfterHeader) {
+        Map<String, Object> parsed = null;
+        if (responseBody != null && !responseBody.isBlank()) {
+            try {
+                parsed = objectMapper.readValue(responseBody, new TypeReference<>() {});
+            } catch (Exception ignored) {
+            }
+        }
+
         String message = "HTTP " + status;
         if (parsed != null) {
             if (parsed.containsKey("error")) {
@@ -239,14 +272,26 @@ public class PostProxyClient {
             message = "HTTP " + status + ": " + responseBody;
         }
 
-        throw switch (status) {
+        return switch (status) {
             case 400 -> new BadRequestException(message, parsed);
             case 401 -> new AuthenticationException(message, parsed);
+            case 403 -> new ForbiddenException(message, parsed);
             case 404 -> new NotFoundException(message, parsed);
             case 409 -> new ConflictException(message, parsed);
             case 422 -> new ValidationException(message, parsed);
+            case 429 -> new RateLimitException(message, parsed, parseRetryAfter(retryAfterHeader));
             default -> new PostProxyException(message, status, parsed);
         };
+    }
+
+    private static Integer parseRetryAfter(String header) {
+        if (header == null) return null;
+        try {
+            int seconds = Integer.parseInt(header.trim());
+            return seconds > 0 ? seconds : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private byte[] buildMultipartBody(String boundary, Map<String, Object> fields, Map<String, List<Path>> fileGroups)

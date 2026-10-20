@@ -10,5 +10,8 @@ public record ProfileEventData(
         @JsonProperty("profile_group_id") String profileGroupId,
         @JsonProperty("status") String status,
         @JsonProperty("uid") String uid,
-        @JsonProperty("username") String username
+        @JsonProperty("platform_id") String platformId,
+        @JsonProperty("username") String username,
+        /** On {@code profile.disconnected}: {@code "user"} or {@code "automated"}. */
+        @JsonProperty("origin") String origin
 ) {}

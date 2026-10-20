@@ -15,6 +15,7 @@ public record Message(
         @JsonProperty("tag") String tag,
         @JsonProperty("external_comment_id") String externalCommentId,
         @JsonProperty("error_message") String errorMessage,
+        @JsonProperty("error_details") ErrorDetails errorDetails,
         @JsonProperty("platform_data") Map<String, Object> platformData,
         @JsonProperty("external_posted_at") String externalPostedAt,
         @JsonProperty("external_delivered_at") String externalDeliveredAt,
@@ -25,7 +26,17 @@ public record Message(
         @JsonProperty("quick_replies") List<QuickReply> quickReplies,
         @JsonProperty("buttons") List<MessageButton> buttons,
         @JsonProperty("card") MessageCard card,
+        @JsonProperty("elements") List<MessageElement> elements,
         @JsonProperty("tapped_action") TappedAction tappedAction,
+        @JsonProperty("story_reply") Map<String, Object> storyReply,
+        /** WhatsApp only. */
+        @JsonProperty("interactive") Map<String, Object> interactive,
+        /** WhatsApp only. */
+        @JsonProperty("location") MessageLocation location,
+        /** WhatsApp only. */
+        @JsonProperty("contacts") List<Map<String, Object>> contacts,
+        /** WhatsApp only: the template this message was sent from. */
+        @JsonProperty("template") MessageTemplateRef template,
         @JsonProperty("external_deleted_at") String externalDeletedAt,
         @JsonProperty("reactions") List<Reaction> reactions,
         @JsonProperty("attachments") List<Attachment> attachments,

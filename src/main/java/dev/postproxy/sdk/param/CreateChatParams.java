@@ -4,6 +4,8 @@ public record CreateChatParams(
         String participantExternalId,
         String participantUsername,
         String participantName,
+        /** Required for WhatsApp: the phone number id from {@code profiles().placements(...)}. */
+        String placementId,
         String profileGroupId,
         /** Optional Idempotency-Key: retrying with the same key replays the original response. */
         @com.fasterxml.jackson.annotation.JsonIgnore String idempotencyKey
@@ -16,6 +18,7 @@ public record CreateChatParams(
         private final String participantExternalId;
         private String participantUsername;
         private String participantName;
+        private String placementId;
         private String profileGroupId;
         private String idempotencyKey;
 
@@ -25,11 +28,12 @@ public record CreateChatParams(
 
         public Builder participantUsername(String participantUsername) { this.participantUsername = participantUsername; return this; }
         public Builder participantName(String participantName) { this.participantName = participantName; return this; }
+        public Builder placementId(String placementId) { this.placementId = placementId; return this; }
         public Builder profileGroupId(String profileGroupId) { this.profileGroupId = profileGroupId; return this; }
         public Builder idempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; return this; }
 
         public CreateChatParams build() {
-            return new CreateChatParams(participantExternalId, participantUsername, participantName, profileGroupId, idempotencyKey);
+            return new CreateChatParams(participantExternalId, participantUsername, participantName, placementId, profileGroupId, idempotencyKey);
         }
     }
 }

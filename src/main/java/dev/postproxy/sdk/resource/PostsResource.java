@@ -11,6 +11,7 @@ import dev.postproxy.sdk.param.CreatePostParams;
 import dev.postproxy.sdk.param.DeleteOnPlatformParams;
 import dev.postproxy.sdk.param.GetStatsParams;
 import dev.postproxy.sdk.param.ListPostsParams;
+import dev.postproxy.sdk.param.MediaInput;
 import dev.postproxy.sdk.param.PlatformParams;
 import dev.postproxy.sdk.param.ThreadChildInput;
 import dev.postproxy.sdk.param.UpdatePostParams;
@@ -73,13 +74,16 @@ public class PostsResource {
         boolean hasParentFiles = params.mediaFiles() != null && !params.mediaFiles().isEmpty();
         boolean hasThreadFiles = params.thread() != null && params.thread().stream()
                 .anyMatch(t -> t.mediaFiles() != null && !t.mediaFiles().isEmpty());
-        if (hasParentFiles || hasThreadFiles) {
-            return createMultipart(params, query);
+        Map<String, String> headers = Boolean.TRUE.equals(params.skipDuplicateCheck())
+                ? Map.of("X-Skip-Duplicate-Check", "true")
+                : null;
+        if (hasParentFiles || hasThreadFiles || hasLocalCoverFile(params.platforms())) {
+            return createMultipart(params, query, headers);
         }
-        return createJson(params, query);
+        return createJson(params, query, headers);
     }
 
-    private Post createJson(CreatePostParams params, Map<String, String> query) {
+    private Post createJson(CreatePostParams params, Map<String, String> query, Map<String, String> headers) {
         Map<String, Object> postMap = new LinkedHashMap<>();
         postMap.put("body", params.body());
         if (params.scheduledAt() != null) postMap.put("scheduled_at", params.scheduledAt());
@@ -94,10 +98,10 @@ public class PostsResource {
         if (params.queueId() != null) body.put("queue_id", params.queueId());
         if (params.queuePriority() != null) body.put("queue_priority", params.queuePriority());
 
-        return client.post("/api/posts", query, body, new TypeReference<>() {}, params.idempotencyKey());
+        return client.post("/api/posts", query, body, new TypeReference<>() {}, params.idempotencyKey(), headers);
     }
 
-    private Post createMultipart(CreatePostParams params, Map<String, String> query) {
+    private Post createMultipart(CreatePostParams params, Map<String, String> query, Map<String, String> headers) {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("post[body]", params.body());
         if (params.scheduledAt() != null) fields.put("post[scheduled_at]", params.scheduledAt());
@@ -105,14 +109,17 @@ public class PostsResource {
         if (params.queueId() != null) fields.put("queue_id", params.queueId());
         if (params.queuePriority() != null) fields.put("queue_priority", params.queuePriority());
         fields.put("profiles[]", params.profiles());
-
-        if (params.platforms() != null) {
-            addPlatformFields(fields, params.platforms());
+        if (params.media() != null && !params.media().isEmpty()) {
+            fields.put("media[]", mediaUrls(params.media()));
         }
 
         Map<String, List<Path>> fileGroups = new LinkedHashMap<>();
         if (params.mediaFiles() != null && !params.mediaFiles().isEmpty()) {
             fileGroups.put("media[]", params.mediaFiles());
+        }
+
+        if (params.platforms() != null) {
+            addPlatformFields(fields, fileGroups, params.platforms());
         }
 
         if (params.thread() != null) {
@@ -128,31 +135,62 @@ public class PostsResource {
             }
         }
 
-        return client.postMultipart("/api/posts", query, fields, fileGroups, new TypeReference<>() {}, params.idempotencyKey());
+        return client.postMultipart("/api/posts", query, fields, fileGroups, new TypeReference<>() {},
+                params.idempotencyKey(), headers);
     }
 
-    private void addPlatformFields(Map<String, Object> fields, PlatformParams platforms) {
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = client.getObjectMapper().convertValue(platforms, Map.class);
-            for (Map.Entry<String, Object> platformEntry : map.entrySet()) {
-                String platformName = platformEntry.getKey();
-                if (platformEntry.getValue() instanceof Map<?, ?> paramMap) {
-                    for (Map.Entry<?, ?> paramEntry : paramMap.entrySet()) {
-                        String key = "platforms[" + platformName + "][" + paramEntry.getKey() + "]";
-                        Object value = paramEntry.getValue();
-                        if (value instanceof List<?> list) {
-                            fields.put(key + "[]", list);
-                        } else {
-                            fields.put(key, value);
-                        }
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> platformMap(PlatformParams platforms) {
+        return client.getObjectMapper().convertValue(platforms, Map.class);
+    }
+
+    // cover_file is a local path unless it's a base64 data URL, which the API
+    // takes as a plain string.
+    private static boolean isLocalCoverFile(Object value) {
+        return value instanceof String s && !s.startsWith("data:");
+    }
+
+    private boolean hasLocalCoverFile(PlatformParams platforms) {
+        if (platforms == null) return false;
+        for (Object params : platformMap(platforms).values()) {
+            if (params instanceof Map<?, ?> paramMap && isLocalCoverFile(paramMap.get("cover_file"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<String> mediaUrls(List<Object> media) {
+        return media.stream().map(MediaInput::urlOf).collect(Collectors.toList());
+    }
+
+    // Platform params as flat form fields; a local cover_file is attached as a file.
+    private void addPlatformFields(Map<String, Object> fields, Map<String, List<Path>> fileGroups,
+                                   PlatformParams platforms) {
+        for (Map.Entry<String, Object> platformEntry : platformMap(platforms).entrySet()) {
+            String platformName = platformEntry.getKey();
+            if (platformEntry.getValue() instanceof Map<?, ?> paramMap) {
+                for (Map.Entry<?, ?> paramEntry : paramMap.entrySet()) {
+                    String key = "platforms[" + platformName + "][" + paramEntry.getKey() + "]";
+                    Object value = paramEntry.getValue();
+                    if ("cover_file".equals(paramEntry.getKey()) && isLocalCoverFile(value)) {
+                        fileGroups.put(key, List.of(Path.of((String) value)));
+                    } else if (value instanceof List<?> list) {
+                        fields.put(key + "[]", list);
+                    } else {
+                        fields.put(key, value);
                     }
                 }
             }
-        } catch (Exception ignored) {
         }
     }
 
+    /**
+     * Updates a post. On a published post only {@code body}, the YouTube {@code title} and the
+     * Pinterest {@code title} / {@code destinationLink} can change; the edit is pushed to the
+     * platforms in the background ({@code platform_post.edited} / {@code platform_post.edit_failed}
+     * webhooks).
+     */
     public Post update(String id, UpdatePostParams params) {
         String pgId = params.profileGroupId() != null ? params.profileGroupId() : client.getDefaultProfileGroupId();
         Map<String, String> query = new LinkedHashMap<>();
@@ -161,7 +199,7 @@ public class PostsResource {
         boolean hasParentFiles = params.mediaFiles() != null && !params.mediaFiles().isEmpty();
         boolean hasThreadFiles = params.thread() != null && params.thread().stream()
                 .anyMatch(t -> t.mediaFiles() != null && !t.mediaFiles().isEmpty());
-        if (hasParentFiles || hasThreadFiles) {
+        if (hasParentFiles || hasThreadFiles || hasLocalCoverFile(params.platforms())) {
             return updateMultipart(id, params, query);
         }
         return updateJson(id, params, query);
@@ -193,14 +231,17 @@ public class PostsResource {
         if (params.queueId() != null) fields.put("queue_id", params.queueId());
         if (params.queuePriority() != null) fields.put("queue_priority", params.queuePriority());
         if (params.profiles() != null) fields.put("profiles[]", params.profiles());
-
-        if (params.platforms() != null) {
-            addPlatformFields(fields, params.platforms());
+        if (params.media() != null && !params.media().isEmpty()) {
+            fields.put("media[]", mediaUrls(params.media()));
         }
 
         Map<String, List<Path>> fileGroups = new LinkedHashMap<>();
         if (params.mediaFiles() != null && !params.mediaFiles().isEmpty()) {
             fileGroups.put("media[]", params.mediaFiles());
+        }
+
+        if (params.platforms() != null) {
+            addPlatformFields(fields, fileGroups, params.platforms());
         }
 
         if (params.thread() != null) {

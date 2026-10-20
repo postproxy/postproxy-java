@@ -179,4 +179,78 @@ class WebhookEventsTest {
         assertThrows(WebhookParseException.class, () ->
                 WebhookEvents.parse("not json{"));
     }
+
+    @Test
+    void acceptsEventsAddedIn114() {
+        var types = List.of(
+                "platform_post.edited", "platform_post.edit_failed", "profile.placements_synced",
+                "placement.orphaned", "placement.restored", "comment.failed",
+                "comment.failed_waiting_for_retry", "comment.delivery_unconfirmed", "comment.edited",
+                "comment.edit_failed", "profile_comment.failed", "profile_comment.failed_waiting_for_retry",
+                "profile_comment.deleted", "referral.received", "message_template.status_updated",
+                "message_template.category_updated", "placement.name_status_updated",
+                "placement.quality_updated", "whatsapp.automatic_event");
+        for (String type : types) {
+            var event = WebhookEvents.parse(envelope(type, Map.of("id", "x")));
+            assertNotNull(event.type(), type);
+            assertEquals(type, event.type().getValue());
+        }
+    }
+
+    @Test
+    void decodesMessageTemplateStatusUpdated() {
+        var data = new java.util.HashMap<String, Object>(Map.of(
+                "id", "tpl_1", "external_id", "998877", "profile_id", "prof_wa", "platform", "whatsapp",
+                "name", "order_update", "language", "en_US", "category", "UTILITY", "status", "APPROVED"));
+        data.put("rejected_reason", null);
+        var event = WebhookEvents.parse(envelope("message_template.status_updated", data));
+        assertEquals(WebhookEventType.MESSAGE_TEMPLATE_STATUS_UPDATED, event.type());
+        var template = WebhookEvents.asMessageTemplateEvent(event);
+        assertEquals("APPROVED", template.status());
+        assertNull(template.rejectedReason());
+    }
+
+    @Test
+    void decodesPlacementQualityUpdated() {
+        var event = WebhookEvents.parse(envelope("placement.quality_updated", Map.of(
+                "id", "pn_1", "name", "Acme", "platform", "whatsapp", "profile_id", "prof_wa",
+                "profile_name", "Acme WABA", "metadata", Map.of(),
+                "event", "UPGRADE", "current_limit", "TIER_10K", "old_limit", "TIER_1K")));
+        var data = WebhookEvents.asPlacementEvent(event);
+        assertEquals("TIER_10K", data.currentLimit());
+        assertNull(data.decision());
+    }
+
+    @Test
+    void decodesPlacementsSyncedAndReferral() {
+        var synced = WebhookEvents.asPlacementsSynced(WebhookEvents.parse(envelope("profile.placements_synced", Map.of(
+                "id", "prof_1", "platform", "facebook", "placements_sync_status", "completed",
+                "placements", List.of(Map.of("id", "page_1", "name", "Acme Page"))))));
+        assertEquals("page_1", synced.placements().get(0).id());
+
+        var referral = WebhookEvents.asReferral(WebhookEvents.parse(envelope("referral.received", Map.of(
+                "chat", Map.of("id", "chat_1", "platform", "whatsapp", "group", false),
+                "source", "ADS", "ctwa_clid", "clid_1"))));
+        assertEquals("chat_1", referral.chat().id());
+        assertEquals("clid_1", referral.ctwaClid());
+    }
+
+    @Test
+    void decodesCommentFailureFields() {
+        var event = WebhookEvents.parse(envelope("comment.failed", Map.of(
+                "id", "c1", "platform", "facebook", "profile_id", "prof_1", "error", "Permission denied",
+                "error_details", Map.of("platform_error_code", "200"))));
+        var data = WebhookEvents.asCommentCreated(event);
+        assertEquals("Permission denied", data.error());
+        assertEquals("200", data.errorDetails().platformErrorCode());
+    }
+
+    @Test
+    void decodesWhatsAppAutomaticEvent() {
+        var event = WebhookEvents.parse(envelope("whatsapp.automatic_event", Map.of(
+                "profile_id", "prof_wa", "event_name", "Purchase", "custom_data", Map.of("value", 10))));
+        var data = WebhookEvents.asWhatsAppAutomaticEvent(event);
+        assertEquals("Purchase", data.eventName());
+        assertEquals(10, data.customData().get("value"));
+    }
 }

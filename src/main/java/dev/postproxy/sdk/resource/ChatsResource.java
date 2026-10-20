@@ -2,6 +2,7 @@ package dev.postproxy.sdk.resource;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import dev.postproxy.sdk.PostProxyClient;
+import dev.postproxy.sdk.model.AcceptedResponse;
 import dev.postproxy.sdk.model.Chat;
 import dev.postproxy.sdk.model.PaginatedResponse;
 import dev.postproxy.sdk.param.CreateChatParams;
@@ -52,6 +53,7 @@ public class ChatsResource {
         body.put("participant_external_id", params.participantExternalId());
         if (params.participantUsername() != null) body.put("participant_username", params.participantUsername());
         if (params.participantName() != null) body.put("participant_name", params.participantName());
+        if (params.placementId() != null) body.put("placement_id", params.placementId());
 
         return client.post("/api/profiles/" + profileId + "/chats", query, body, new TypeReference<>() {}, params.idempotencyKey());
     }
@@ -98,5 +100,53 @@ public class ChatsResource {
         if (pgId != null) query.put("profile_group_id", pgId);
 
         return client.delete("/api/chats/" + chatId + "/archive", query, new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /** Marks the latest inbound message as read (shows the read receipt). */
+    public Chat markRead(String chatId) {
+        return markRead(chatId, null);
+    }
+
+    public Chat markRead(String chatId, String profileGroupId) {
+        return markRead(chatId, profileGroupId, null);
+    }
+
+    public Chat markRead(String chatId, String profileGroupId, String idempotencyKey) {
+        return client.post("/api/chats/" + chatId + "/mark_read", chatQuery(profileGroupId), null,
+                new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /** Shows the typing indicator. Facebook, Instagram and WhatsApp only. */
+    public AcceptedResponse startTyping(String chatId) {
+        return startTyping(chatId, null);
+    }
+
+    public AcceptedResponse startTyping(String chatId, String profileGroupId) {
+        return startTyping(chatId, profileGroupId, null);
+    }
+
+    public AcceptedResponse startTyping(String chatId, String profileGroupId, String idempotencyKey) {
+        return client.post("/api/chats/" + chatId + "/start_typing", chatQuery(profileGroupId), null,
+                new TypeReference<>() {}, idempotencyKey);
+    }
+
+    public AcceptedResponse stopTyping(String chatId) {
+        return stopTyping(chatId, null);
+    }
+
+    public AcceptedResponse stopTyping(String chatId, String profileGroupId) {
+        return stopTyping(chatId, profileGroupId, null);
+    }
+
+    public AcceptedResponse stopTyping(String chatId, String profileGroupId, String idempotencyKey) {
+        return client.post("/api/chats/" + chatId + "/stop_typing", chatQuery(profileGroupId), null,
+                new TypeReference<>() {}, idempotencyKey);
+    }
+
+    private Map<String, String> chatQuery(String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        String pgId = profileGroupId != null ? profileGroupId : client.getDefaultProfileGroupId();
+        if (pgId != null) query.put("profile_group_id", pgId);
+        return query;
     }
 }
