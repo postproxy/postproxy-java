@@ -150,4 +150,27 @@ class GoogleBusinessResourceTest {
         assertEquals("DELETE", reqs.get(2).method());
         assertTrue(reqs.get(2).url().contains("media_name=accounts/1/locations/1/media/9"));
     }
+
+    @Test
+    void readsSearchKeywords() {
+        var lowVolume = new java.util.HashMap<String, Object>();
+        lowVolume.put("keyword", "acme coffee");
+        lowVolume.put("impressions", null);
+        lowVolume.put("impressions_threshold", 15);
+        var mock = new MockPostProxyClient(Map.of("months", List.of(Map.of(
+                "month", "2026-07",
+                "keywords", List.of(Map.of("keyword", "coffee near me", "impressions", 245), lowVolume)))),
+                200, null);
+        var gbp = new GoogleBusinessResource(mock);
+
+        var result = gbp.searchKeywords("prof_gbp", "loc_1", "2026-07", "2026-09");
+
+        assertEquals("2026-07", result.months().get(0).month());
+        assertEquals(245L, result.months().get(0).keywords().get(0).impressions());
+        assertNull(result.months().get(0).keywords().get(1).impressions());
+        assertEquals(15L, result.months().get(0).keywords().get(1).impressionsThreshold());
+        assertEquals("https://mock.postproxy.dev" + BASE
+                        + "/search_keywords?location_id=loc_1&from_month=2026-07&to_month=2026-09",
+                mock.getRequests().get(0).url());
+    }
 }

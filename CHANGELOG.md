@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.15.0] - 2026-10-30
+
+### Added
+
+- **Thread control (Facebook & Instagram).** `chats().passThreadControl(chatId, targetAppId, metadata)`, `takeThreadControl`, `releaseThreadControl`, `requestThreadControl` (each returns the `Chat`, whose `metadata().get("thread_control")` holds the owner; overloads take `profileGroupId` and `idempotencyKey`) and `chats().threadOwner(chatId)` (`ThreadOwner`: `appId`, `expiresAt`).
+- **Instagram collaboration invites** (Facebook login): `profiles().instagramCollaborationInvites(id, after)` (`InstagramCollaborationInvitesResponse` / `InstagramCollaborationInvite`), `acceptInstagramCollaborationInvite`, `declineInstagramCollaborationInvite` (`InstagramCollaborationInviteResult`).
+- **Pinterest boards:** `profiles().createPinterestBoard(id, name, description, privacy)` (with `PinterestBoardPrivacy`: `PUBLIC` / `PROTECTED`) returns the new board as a `Placement`; `profiles().deletePinterestBoard(id, boardId)` (`PinterestBoardDeleted`).
+- **YouTube playlists:** `profiles().youtubePlaylists(id, pageToken)` (`YouTubePlaylistsResponse`), `createYouTubePlaylist`, `updateYouTubePlaylist` (null arguments keep their value), `deleteYouTubePlaylist` (`YouTubePlaylistDeleted`), returning `YouTubePlaylist`.
+- **Google Business:** `googleBusiness().searchKeywords(profileId, locationId, fromMonth, toMonth)` returns a typed `SearchKeywordsResponse` (`SearchKeywordsMonth`, `SearchKeyword` with `impressions` / `impressionsThreshold`) — unlike the rest of the resource, not a passthrough map.
+- **Post params:** `InstagramParams` gains `disableComment`, `locationId` and (reels) `shareToFeed`; `LinkedInParams` gains `documentTitle` and `firstComment`; `YouTubeParams` gains `playlistId`.
+- **Webhooks:** `profile_comment.edited`, `chat.thread_control_changed` (`ThreadControlChangedEventData`, `asThreadControlChanged`) and `chat.thread_control_requested` (`ThreadControlRequestedEventData`, `asThreadControlRequested`). `ProfileEventData` gains `error` and `errorDetails` (`ErrorDetails`), set on `profile.disconnected` when PostProxy disconnected the profile.
+- Examples: `ThreadControl.java`, `YouTubePlaylists.java`; search keywords in `GoogleBusiness.java`.
+
+### Changed
+
+- `SendMessageParams.replyToExternalId` now also works on Instagram chats.
+- `InstagramParams`, `LinkedInParams`, `YouTubeParams` and `ProfileEventData` gained record components. Source-compatible for accessor and builder callers; only direct canonical-constructor calls are affected.
+
 ## [1.14.0] - 2026-10-20
 
 ### Added

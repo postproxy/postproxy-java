@@ -83,6 +83,14 @@ public final class WebhookEvents {
         return convert(event.data(), ReferralEventData.class);
     }
 
+    public static ThreadControlChangedEventData asThreadControlChanged(WebhookEvent event) {
+        return convert(event.data(), ThreadControlChangedEventData.class);
+    }
+
+    public static ThreadControlRequestedEventData asThreadControlRequested(WebhookEvent event) {
+        return convert(event.data(), ThreadControlRequestedEventData.class);
+    }
+
     /** For {@code message_template.status_updated} and {@code message_template.category_updated}. */
     public static MessageTemplateEventData asMessageTemplateEvent(WebhookEvent event) {
         return convert(event.data(), MessageTemplateEventData.class);

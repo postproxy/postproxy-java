@@ -191,4 +191,51 @@ class ChatsResourceTest {
         assertTrue(result.group());
         assertFalse(result.withinMessagingWindow());
     }
+
+    @Test
+    void passesThreadControlToAnotherApp() {
+        var mock = new MockPostProxyClient(MOCK_CHAT, 200, null);
+        var chats = new ChatsResource(mock);
+
+        var chat = chats.passThreadControl("chat_xyz789", "263902037430900", "escalated to support");
+
+        assertEquals("chat_xyz789", chat.id());
+        var req = mock.getRequests().get(0);
+        assertEquals("POST", req.method());
+        assertTrue(req.url().contains("/chats/chat_xyz789/pass_thread_control"));
+        assertEquals(Map.of("target_app_id", "263902037430900", "metadata", "escalated to support"), req.body());
+    }
+
+    @Test
+    void takesReleasesAndRequestsThreadControl() {
+        var mock = new MockPostProxyClient(MOCK_CHAT, 200, null);
+        var chats = new ChatsResource(mock);
+
+        chats.takeThreadControl("chat_xyz789");
+        chats.releaseThreadControl("chat_xyz789", "done");
+        chats.requestThreadControl("chat_xyz789", null, null, "idem-1");
+
+        var reqs = mock.getRequests();
+        assertTrue(reqs.get(0).url().contains("/chats/chat_xyz789/take_thread_control"));
+        assertEquals(Map.of(), reqs.get(0).body());
+        assertTrue(reqs.get(1).url().contains("/chats/chat_xyz789/release_thread_control"));
+        assertEquals(Map.of("metadata", "done"), reqs.get(1).body());
+        assertTrue(reqs.get(2).url().contains("/chats/chat_xyz789/request_thread_control"));
+        assertEquals("POST", reqs.get(2).method());
+        assertEquals("idem-1", reqs.get(2).idempotencyKey());
+    }
+
+    @Test
+    void getsThreadOwner() {
+        var mock = new MockPostProxyClient(
+                Map.of("app_id", "263902037430900", "expires_at", "2026-10-28T12:00:00Z"), 200, null);
+        var chats = new ChatsResource(mock);
+
+        var owner = chats.threadOwner("chat_xyz789");
+
+        assertEquals("263902037430900", owner.appId());
+        assertEquals("2026-10-28T12:00:00Z", owner.expiresAt());
+        assertEquals("GET", mock.getRequests().get(0).method());
+        assertTrue(mock.getRequests().get(0).url().contains("/chats/chat_xyz789/thread_owner"));
+    }
 }

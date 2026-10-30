@@ -1,6 +1,7 @@
 package dev.postproxy.sdk.webhook;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import dev.postproxy.sdk.model.ErrorDetails;
 import dev.postproxy.sdk.model.Platform;
 
 public record ProfileEventData(
@@ -13,5 +14,12 @@ public record ProfileEventData(
         @JsonProperty("platform_id") String platformId,
         @JsonProperty("username") String username,
         /** On {@code profile.disconnected}: {@code "user"} or {@code "automated"}. */
-        @JsonProperty("origin") String origin
+        @JsonProperty("origin") String origin,
+        /**
+         * On {@code profile.disconnected} with origin {@code "automated"}: why PostProxy deactivated
+         * it, e.g. {@code "Twitter access revoked"}.
+         */
+        @JsonProperty("error") String error,
+        /** Raw platform error behind the disconnect, when available. */
+        @JsonProperty("error_details") ErrorDetails errorDetails
 ) {}

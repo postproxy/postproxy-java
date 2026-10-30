@@ -20,6 +20,10 @@ public record Chat(
         @JsonProperty("last_inbound_at") String lastInboundAt,
         @JsonProperty("last_outbound_at") String lastOutboundAt,
         @JsonProperty("last_message_at") String lastMessageAt,
+        /**
+         * Facebook and Instagram chats carry {@code thread_control} here once known
+         * ({@code owner_app_id}, {@code expires_at}, {@code updated_at}).
+         */
         @JsonProperty("metadata") Map<String, Object> metadata,
         @JsonProperty("archived") Boolean archived,
         /**

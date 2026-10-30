@@ -28,6 +28,7 @@ public record SendMessageParams(
         List<String> media,
         List<Path> mediaFiles,
         String tag,
+        // Telegram, WhatsApp and Instagram: the external_id of the message to quote.
         String replyToExternalId,
         Map<String, Object> replyMarkup,
         List<QuickReply> quickReplies,

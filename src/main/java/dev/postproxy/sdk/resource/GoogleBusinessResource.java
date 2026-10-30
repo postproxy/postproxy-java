@@ -2,6 +2,7 @@ package dev.postproxy.sdk.resource;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import dev.postproxy.sdk.PostProxyClient;
+import dev.postproxy.sdk.model.SearchKeywordsResponse;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -298,6 +299,33 @@ public class GoogleBusinessResource {
                                            String profileGroupId, String idempotencyKey) {
         return remove(profileId, "delete_media", locationId, Map.of("media_name", mediaName),
                 profileGroupId, idempotencyKey);
+    }
+
+    // --- Search keywords ---
+
+    public SearchKeywordsResponse searchKeywords(String profileId, String locationId) {
+        return searchKeywords(profileId, locationId, null, null, null);
+    }
+
+    public SearchKeywordsResponse searchKeywords(String profileId, String locationId, String fromMonth,
+                                                 String toMonth) {
+        return searchKeywords(profileId, locationId, fromMonth, toMonth, null);
+    }
+
+    /**
+     * The searches that showed the location in Google Search and Maps, month by month. Months are
+     * {@code "YYYY-MM"}; the range is at most 12 months. Unlike the rest of this resource, the
+     * response is PostProxy-shaped (snake_case) and typed.
+     */
+    public SearchKeywordsResponse searchKeywords(String profileId, String locationId, String fromMonth,
+                                                 String toMonth, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        query.put("location_id", locationId);
+        if (fromMonth != null) query.put("from_month", fromMonth);
+        if (toMonth != null) query.put("to_month", toMonth);
+        putProfileGroup(query, profileGroupId);
+
+        return client.get(path(profileId, "search_keywords"), query, new TypeReference<>() {});
     }
 
     private static String path(String profileId, String action) {

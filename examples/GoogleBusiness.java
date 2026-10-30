@@ -41,5 +41,15 @@ public class GoogleBusiness {
         gbp.createMedia(profileId, locationId, "https://example.com/storefront.jpg",
                 "EXTERIOR", "PHOTO", null, null, null);
         System.out.println("Media: " + gbp.media(profileId, locationId));
+
+        // Searches that showed the location, month by month (max 12 months)
+        var keywords = gbp.searchKeywords(profileId, locationId, "2026-07", "2026-09");
+        for (var month : keywords.months()) {
+            for (var k : month.keywords()) {
+                // Low-volume keywords report only an upper bound
+                var count = k.impressions() != null ? String.valueOf(k.impressions()) : "<" + k.impressionsThreshold();
+                System.out.println(month.month() + " " + k.keyword() + " " + count);
+            }
+        }
     }
 }

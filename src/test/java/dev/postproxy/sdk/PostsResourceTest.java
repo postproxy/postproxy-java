@@ -562,6 +562,28 @@ class PostsResourceTest {
     }
 
     @Test
+    void sendsPlatformParamsAddedIn115() {
+        var mock = new MockPostProxyClient(Map.of("id", "p"), 200, null);
+        new PostsResource(mock).create(CreatePostParams.builder()
+                .body("hi").profiles(List.of("prof_1"))
+                .platforms(PlatformParams.builder()
+                        .instagram(InstagramParams.builder().format(InstagramFormat.REEL).disableComment(true)
+                                .locationId("110123456789").shareToFeed(false).build())
+                        .linkedin(LinkedInParams.builder().documentTitle("Q3 report")
+                                .firstComment("Full deck in the comments").build())
+                        .youtube(YouTubeParams.builder().title("Intro").playlistId("PL1").build())
+                        .build())
+                .build());
+
+        assertEquals(Map.of(
+                "instagram", Map.of("format", "reel", "disable_comment", true, "location_id", "110123456789",
+                        "share_to_feed", false),
+                "linkedin", Map.of("document_title", "Q3 report", "first_comment", "Full deck in the comments"),
+                "youtube", Map.of("title", "Intro", "playlist_id", "PL1")
+        ), jsonBody(mock).get("platforms"));
+    }
+
+    @Test
     void sendsSkipDuplicateCheckHeader() {
         var mock = new MockPostProxyClient(Map.of("id", "p"), 200, null);
         var posts = new PostsResource(mock);

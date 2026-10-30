@@ -6,7 +6,9 @@ import dev.postproxy.sdk.model.PostSyncTrigger;
 import dev.postproxy.sdk.resource.ProfilesResource;
 import dev.postproxy.sdk.model.DailyStatsAttribution;
 import dev.postproxy.sdk.model.InstagramAudioType;
+import dev.postproxy.sdk.model.PinterestBoardPrivacy;
 import dev.postproxy.sdk.model.ProfileInactiveReason;
+import dev.postproxy.sdk.model.YouTubePrivacy;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -344,5 +346,91 @@ class ProfilesResourceTest {
         assertTrue(req.url().contains("/profiles/p1/backfill_chats"));
         assertEquals(Map.of("from", "2026-01-01T00:00:00Z"), req.body());
         assertEquals("idem", req.idempotencyKey());
+    }
+
+    @Test
+    void listsAcceptsAndDeclinesInstagramCollaborationInvites() {
+        var mock = new MockPostProxyClient(Map.of(
+                "collaboration_invites", List.of(Map.of("media_id", "1789", "media_owner_username", "partner_brand",
+                        "caption", "Collab", "media_url", "https://x")),
+                "next_cursor", "cur_2"), 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var list = profiles.instagramCollaborationInvites("p1", "cur_1");
+        assertEquals("1789", list.collaborationInvites().get(0).mediaId());
+        assertEquals("partner_brand", list.collaborationInvites().get(0).mediaOwnerUsername());
+        assertEquals("cur_2", list.nextCursor());
+        profiles.acceptInstagramCollaborationInvite("p1", "1789");
+        profiles.declineInstagramCollaborationInvite("p1", "1790");
+
+        var reqs = mock.getRequests();
+        assertTrue(reqs.get(0).url().contains("/api/profiles/p1/instagram/collaboration_invites?after=cur_1"));
+        assertEquals("POST", reqs.get(1).method());
+        assertTrue(reqs.get(1).url().contains("/profiles/p1/instagram/accept_collaboration_invite"));
+        assertEquals(Map.of("media_id", "1789"), reqs.get(1).body());
+        assertTrue(reqs.get(2).url().contains("/profiles/p1/instagram/decline_collaboration_invite"));
+        assertEquals(Map.of("media_id", "1790"), reqs.get(2).body());
+    }
+
+    @Test
+    void parsesCollaborationInviteResult() {
+        var mock = new MockPostProxyClient(Map.of("accepted", true, "media_id", "1789"), 200, null);
+        var result = new ProfilesResource(mock).acceptInstagramCollaborationInvite("p1", "1789");
+        assertTrue(result.accepted());
+        assertNull(result.declined());
+        assertEquals("1789", result.mediaId());
+    }
+
+    @Test
+    void createsAndDeletesPinterestBoards() {
+        var mock = new MockPostProxyClient(Map.of("id", "1022", "name", "Summer Recipes", "metadata", Map.of()),
+                200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var board = profiles.createPinterestBoard("p1", "Summer Recipes", "Light dinners",
+                PinterestBoardPrivacy.PROTECTED);
+        assertEquals("1022", board.id());
+        profiles.deletePinterestBoard("p1", "1022");
+
+        var create = mock.getRequests().get(0);
+        assertEquals("POST", create.method());
+        assertTrue(create.url().contains("/profiles/p1/pinterest/create_board"));
+        assertEquals(Map.of("name", "Summer Recipes", "description", "Light dinners", "privacy", "PROTECTED"),
+                create.body());
+        var del = mock.getRequests().get(1);
+        assertEquals("DELETE", del.method());
+        assertTrue(del.url().contains("/api/profiles/p1/pinterest/delete_board?board_id=1022"));
+    }
+
+    @Test
+    void managesYouTubePlaylists() {
+        var playlist = new java.util.HashMap<String, Object>(Map.of(
+                "id", "PL1", "title", "Tutorials", "description", "", "privacy_status", "public",
+                "item_count", 3, "published_at", "2026-03-14T09:21:00.000Z"));
+        playlist.put("thumbnail_url", null);
+        var response = new java.util.HashMap<String, Object>(Map.of("data", List.of(playlist)));
+        response.put("next_page_token", null);
+        var mock = new MockPostProxyClient(response, 200, null);
+        var profiles = new ProfilesResource(mock);
+
+        var list = profiles.youtubePlaylists("p1", "tok");
+        assertEquals("PL1", list.data().get(0).id());
+        assertEquals(YouTubePrivacy.PUBLIC, list.data().get(0).privacyStatus());
+        assertEquals(3, list.data().get(0).itemCount());
+        assertNull(list.nextPageToken());
+        profiles.createYouTubePlaylist("p1", "Tutorials", null, YouTubePrivacy.UNLISTED);
+        profiles.updateYouTubePlaylist("p1", "PL1", null, "", null);
+        profiles.deleteYouTubePlaylist("p1", "PL1");
+
+        var reqs = mock.getRequests();
+        assertTrue(reqs.get(0).url().contains("/api/profiles/p1/youtube/playlists?page_token=tok"));
+        assertEquals("POST", reqs.get(1).method());
+        assertTrue(reqs.get(1).url().contains("/profiles/p1/youtube/create_playlist"));
+        assertEquals(Map.of("title", "Tutorials", "privacy_status", "unlisted"), reqs.get(1).body());
+        assertEquals("PATCH", reqs.get(2).method());
+        assertTrue(reqs.get(2).url().contains("/profiles/p1/youtube/update_playlist"));
+        assertEquals(Map.of("playlist_id", "PL1", "description", ""), reqs.get(2).body());
+        assertEquals("DELETE", reqs.get(3).method());
+        assertTrue(reqs.get(3).url().contains("/profiles/p1/youtube/delete_playlist?playlist_id=PL1"));
     }
 }

@@ -20,7 +20,12 @@ public record LinkedInParams(
         // Required when format is POLL: 2-4 options, max 30 characters each.
         @JsonProperty("poll_options") List<String> pollOptions,
         // 1, 3, 7 (default) or 14.
-        @JsonProperty("poll_duration_days") Integer pollDurationDays
+        @JsonProperty("poll_duration_days") Integer pollDurationDays,
+        // Title shown above an attached document. Defaults to the file name.
+        @JsonProperty("document_title") String documentTitle,
+        // Posted right after publishing, as the same author (1,250 characters or fewer).
+        // Not on polls; profiles connected before 2026-10-28 must reconnect.
+        @JsonProperty("first_comment") String firstComment
 ) {
     public static Builder builder() {
         return new Builder();
@@ -35,6 +40,8 @@ public record LinkedInParams(
         private String pollQuestion;
         private List<String> pollOptions;
         private Integer pollDurationDays;
+        private String documentTitle;
+        private String firstComment;
 
         public Builder format(LinkedInFormat format) { this.format = format; return this; }
         public Builder organizationId(String organizationId) { this.organizationId = organizationId; return this; }
@@ -45,10 +52,12 @@ public record LinkedInParams(
         public Builder pollQuestion(String pollQuestion) { this.pollQuestion = pollQuestion; return this; }
         public Builder pollOptions(List<String> pollOptions) { this.pollOptions = pollOptions; return this; }
         public Builder pollDurationDays(Integer pollDurationDays) { this.pollDurationDays = pollDurationDays; return this; }
+        public Builder documentTitle(String documentTitle) { this.documentTitle = documentTitle; return this; }
+        public Builder firstComment(String firstComment) { this.firstComment = firstComment; return this; }
 
         public LinkedInParams build() {
             return new LinkedInParams(format, organizationId, reshareUrn, altText, countries,
-                    pollQuestion, pollOptions, pollDurationDays);
+                    pollQuestion, pollOptions, pollDurationDays, documentTitle, firstComment);
         }
     }
 }

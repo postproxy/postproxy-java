@@ -29,7 +29,13 @@ public record InstagramParams(
         @JsonProperty("user_tags") List<InstagramUserTag> userTags,
         // A String, or a List<String> with one entry per media item.
         @JsonProperty("alt_text") Object altText,
-        @JsonProperty("made_with_ai") Boolean madeWithAi
+        @JsonProperty("made_with_ai") Boolean madeWithAi,
+        // Turn comments off on the post, applied right after publishing. Post, reel.
+        @JsonProperty("disable_comment") Boolean disableComment,
+        // Numeric id of a Facebook Page with an address. Post, reel; not stories.
+        @JsonProperty("location_id") String locationId,
+        // Reels only. false publishes to the Reels tab only, not the feed/grid.
+        @JsonProperty("share_to_feed") Boolean shareToFeed
 ) {
     public static Builder builder() {
         return new Builder();
@@ -51,6 +57,9 @@ public record InstagramParams(
         private List<InstagramUserTag> userTags;
         private Object altText;
         private Boolean madeWithAi;
+        private Boolean disableComment;
+        private String locationId;
+        private Boolean shareToFeed;
 
         public Builder format(InstagramFormat format) { this.format = format; return this; }
         public Builder firstComment(String firstComment) { this.firstComment = firstComment; return this; }
@@ -68,10 +77,14 @@ public record InstagramParams(
         public Builder altText(String altText) { this.altText = altText; return this; }
         public Builder altText(List<String> altText) { this.altText = altText; return this; }
         public Builder madeWithAi(Boolean madeWithAi) { this.madeWithAi = madeWithAi; return this; }
+        public Builder disableComment(Boolean disableComment) { this.disableComment = disableComment; return this; }
+        public Builder locationId(String locationId) { this.locationId = locationId; return this; }
+        public Builder shareToFeed(Boolean shareToFeed) { this.shareToFeed = shareToFeed; return this; }
 
         public InstagramParams build() {
             return new InstagramParams(format, firstComment, collaborators, coverUrl, coverFile, audioName, audioId,
-                    audioVolume, videoVolume, stripAudio, trialStrategy, thumbOffset, userTags, altText, madeWithAi);
+                    audioVolume, videoVolume, stripAudio, trialStrategy, thumbOffset, userTags, altText, madeWithAi,
+                    disableComment, locationId, shareToFeed);
         }
     }
 }

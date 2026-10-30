@@ -253,4 +253,51 @@ class WebhookEventsTest {
         assertEquals("Purchase", data.eventName());
         assertEquals(10, data.customData().get("value"));
     }
+
+    @Test
+    void acceptsEventsAddedIn115() {
+        for (String type : List.of("profile_comment.edited", "chat.thread_control_changed",
+                "chat.thread_control_requested")) {
+            var event = WebhookEvents.parse(envelope(type, Map.of("id", "x")));
+            assertNotNull(event.type(), type);
+            assertEquals(type, event.type().getValue());
+        }
+        assertEquals(WebhookEventType.PROFILE_COMMENT_EDITED,
+                WebhookEvents.parse(envelope("profile_comment.edited", Map.of("id", "x"))).type());
+    }
+
+    @Test
+    void decodesThreadControlEvents() {
+        var changed = WebhookEvents.parse(envelope("chat.thread_control_changed", Map.of(
+                "chat", Map.of("id", "chat_1", "platform", "facebook"),
+                "previous_owner_app_id", "263902037430900", "new_owner_app_id", "1217981644879628",
+                "metadata", "escalated", "occurred_at", "2026-10-28T12:00:00Z")));
+        assertEquals(WebhookEventType.CHAT_THREAD_CONTROL_CHANGED, changed.type());
+        var changedData = WebhookEvents.asThreadControlChanged(changed);
+        assertEquals("chat_1", changedData.chat().id());
+        assertEquals("263902037430900", changedData.previousOwnerAppId());
+        assertEquals("1217981644879628", changedData.newOwnerAppId());
+        assertEquals("escalated", changedData.metadata());
+
+        var requested = WebhookEvents.asThreadControlRequested(WebhookEvents.parse(envelope(
+                "chat.thread_control_requested", Map.of(
+                        "chat", Map.of("id", "chat_2", "platform", "instagram"),
+                        "requested_owner_app_id", "263902037430900"))));
+        assertEquals("chat_2", requested.chat().id());
+        assertEquals("263902037430900", requested.requestedOwnerAppId());
+        assertNull(requested.metadata());
+    }
+
+    @Test
+    void decodesProfileDisconnectedError() {
+        var event = WebhookEvents.parse(envelope("profile.disconnected", Map.of(
+                "id", "prof_1", "platform", "twitter", "origin", "automated",
+                "error", "Twitter access revoked",
+                "error_details", Map.of("platform_error_code", "89", "platform_error_message", "Invalid token"))));
+        var data = WebhookEvents.asProfileEvent(event);
+        assertEquals("automated", data.origin());
+        assertEquals("Twitter access revoked", data.error());
+        assertEquals("89", data.errorDetails().platformErrorCode());
+        assertEquals("Invalid token", data.errorDetails().platformErrorMessage());
+    }
 }

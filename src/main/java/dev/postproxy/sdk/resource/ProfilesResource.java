@@ -159,6 +159,182 @@ public class ProfilesResource {
         return client.get("/api/profiles/" + id + "/instagram/available_audio", query, new TypeReference<>() {});
     }
 
+    /**
+     * Posts from other accounts that invited this Instagram profile as a collaborator. Profiles
+     * connected via Facebook login only. Pass {@code nextCursor()} as {@code after} for the next page.
+     */
+    public InstagramCollaborationInvitesResponse instagramCollaborationInvites(String id) {
+        return instagramCollaborationInvites(id, null, null);
+    }
+
+    public InstagramCollaborationInvitesResponse instagramCollaborationInvites(String id, String after) {
+        return instagramCollaborationInvites(id, after, null);
+    }
+
+    public InstagramCollaborationInvitesResponse instagramCollaborationInvites(String id, String after,
+                                                                               String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        if (after != null) query.put("after", after);
+        putProfileGroup(query, profileGroupId);
+
+        return client.get("/api/profiles/" + id + "/instagram/collaboration_invites", query,
+                new TypeReference<>() {});
+    }
+
+    public InstagramCollaborationInviteResult acceptInstagramCollaborationInvite(String id, String mediaId) {
+        return acceptInstagramCollaborationInvite(id, mediaId, null, null);
+    }
+
+    public InstagramCollaborationInviteResult acceptInstagramCollaborationInvite(String id, String mediaId,
+                                                                                 String profileGroupId,
+                                                                                 String idempotencyKey) {
+        return collaborationInvite(id, "accept_collaboration_invite", mediaId, profileGroupId, idempotencyKey);
+    }
+
+    public InstagramCollaborationInviteResult declineInstagramCollaborationInvite(String id, String mediaId) {
+        return declineInstagramCollaborationInvite(id, mediaId, null, null);
+    }
+
+    public InstagramCollaborationInviteResult declineInstagramCollaborationInvite(String id, String mediaId,
+                                                                                  String profileGroupId,
+                                                                                  String idempotencyKey) {
+        return collaborationInvite(id, "decline_collaboration_invite", mediaId, profileGroupId, idempotencyKey);
+    }
+
+    private InstagramCollaborationInviteResult collaborationInvite(String id, String action, String mediaId,
+                                                                   String profileGroupId, String idempotencyKey) {
+        Map<String, String> query = new LinkedHashMap<>();
+        putProfileGroup(query, profileGroupId);
+
+        return client.post("/api/profiles/" + id + "/instagram/" + action, query,
+                Map.of("media_id", mediaId), new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /**
+     * Pinterest only. Boards are the profile's placements; the new board's {@code id()} is the
+     * {@code boardId} you publish to.
+     */
+    public Placement createPinterestBoard(String id, String name) {
+        return createPinterestBoard(id, name, null, null);
+    }
+
+    public Placement createPinterestBoard(String id, String name, String description, PinterestBoardPrivacy privacy) {
+        return createPinterestBoard(id, name, description, privacy, null, null);
+    }
+
+    public Placement createPinterestBoard(String id, String name, String description, PinterestBoardPrivacy privacy,
+                                          String profileGroupId, String idempotencyKey) {
+        Map<String, String> query = new LinkedHashMap<>();
+        putProfileGroup(query, profileGroupId);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", name);
+        if (description != null) body.put("description", description);
+        if (privacy != null) body.put("privacy", privacy.getValue());
+
+        return client.post("/api/profiles/" + id + "/pinterest/create_board", query, body,
+                new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /** Also deletes every Pin on the board, on Pinterest. Cannot be undone. */
+    public PinterestBoardDeleted deletePinterestBoard(String id, String boardId) {
+        return deletePinterestBoard(id, boardId, null, null);
+    }
+
+    public PinterestBoardDeleted deletePinterestBoard(String id, String boardId, String profileGroupId,
+                                                      String idempotencyKey) {
+        Map<String, String> query = new LinkedHashMap<>();
+        query.put("board_id", boardId);
+        putProfileGroup(query, profileGroupId);
+
+        return client.delete("/api/profiles/" + id + "/pinterest/delete_board", query,
+                new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /**
+     * YouTube only. Up to 50 playlists per page; pass {@code nextPageToken()} as
+     * {@code pageToken} for the next one.
+     */
+    public YouTubePlaylistsResponse youtubePlaylists(String id) {
+        return youtubePlaylists(id, null, null);
+    }
+
+    public YouTubePlaylistsResponse youtubePlaylists(String id, String pageToken) {
+        return youtubePlaylists(id, pageToken, null);
+    }
+
+    public YouTubePlaylistsResponse youtubePlaylists(String id, String pageToken, String profileGroupId) {
+        Map<String, String> query = new LinkedHashMap<>();
+        if (pageToken != null) query.put("page_token", pageToken);
+        putProfileGroup(query, profileGroupId);
+
+        return client.get("/api/profiles/" + id + "/youtube/playlists", query, new TypeReference<>() {});
+    }
+
+    public YouTubePlaylist createYouTubePlaylist(String id, String title) {
+        return createYouTubePlaylist(id, title, null, null);
+    }
+
+    public YouTubePlaylist createYouTubePlaylist(String id, String title, String description,
+                                                 YouTubePrivacy privacyStatus) {
+        return createYouTubePlaylist(id, title, description, privacyStatus, null, null);
+    }
+
+    public YouTubePlaylist createYouTubePlaylist(String id, String title, String description,
+                                                 YouTubePrivacy privacyStatus, String profileGroupId,
+                                                 String idempotencyKey) {
+        Map<String, String> query = new LinkedHashMap<>();
+        putProfileGroup(query, profileGroupId);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("title", title);
+        if (description != null) body.put("description", description);
+        if (privacyStatus != null) body.put("privacy_status", privacyStatus.getValue());
+
+        return client.post("/api/profiles/" + id + "/youtube/create_playlist", query, body,
+                new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /**
+     * Updates a playlist. {@code null} arguments keep their current value; an empty
+     * {@code description} clears it.
+     */
+    public YouTubePlaylist updateYouTubePlaylist(String id, String playlistId, String title, String description,
+                                                 YouTubePrivacy privacyStatus) {
+        return updateYouTubePlaylist(id, playlistId, title, description, privacyStatus, null, null);
+    }
+
+    public YouTubePlaylist updateYouTubePlaylist(String id, String playlistId, String title, String description,
+                                                 YouTubePrivacy privacyStatus, String profileGroupId,
+                                                 String idempotencyKey) {
+        Map<String, String> query = new LinkedHashMap<>();
+        putProfileGroup(query, profileGroupId);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("playlist_id", playlistId);
+        if (title != null) body.put("title", title);
+        if (description != null) body.put("description", description);
+        if (privacyStatus != null) body.put("privacy_status", privacyStatus.getValue());
+
+        return client.patch("/api/profiles/" + id + "/youtube/update_playlist", query, body,
+                new TypeReference<>() {}, idempotencyKey);
+    }
+
+    /** Deletes the playlist. The videos in it are not deleted. */
+    public YouTubePlaylistDeleted deleteYouTubePlaylist(String id, String playlistId) {
+        return deleteYouTubePlaylist(id, playlistId, null, null);
+    }
+
+    public YouTubePlaylistDeleted deleteYouTubePlaylist(String id, String playlistId, String profileGroupId,
+                                                        String idempotencyKey) {
+        Map<String, String> query = new LinkedHashMap<>();
+        query.put("playlist_id", playlistId);
+        putProfileGroup(query, profileGroupId);
+
+        return client.delete("/api/profiles/" + id + "/youtube/delete_playlist", query,
+                new TypeReference<>() {}, idempotencyKey);
+    }
+
     /** Facebook only. {@code pageId} is the placement id from {@link #placements(String)}. */
     public Map<String, Object> facebookPage(String id, String pageId) {
         return facebookPage(id, pageId, null, null);

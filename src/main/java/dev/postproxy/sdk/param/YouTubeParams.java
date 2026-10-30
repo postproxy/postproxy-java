@@ -18,7 +18,9 @@ public record YouTubeParams(
         @JsonProperty("made_for_kids") Boolean madeForKids,
         @JsonProperty("tags") List<String> tags,
         @JsonProperty("category_id") String categoryId,
-        @JsonProperty("contains_synthetic_media") Boolean containsSyntheticMedia
+        @JsonProperty("contains_synthetic_media") Boolean containsSyntheticMedia,
+        // Add the video to this playlist, from profiles().youtubePlaylists(...).
+        @JsonProperty("playlist_id") String playlistId
 ) {
     public static Builder builder() {
         return new Builder();
@@ -34,6 +36,7 @@ public record YouTubeParams(
         private List<String> tags;
         private String categoryId;
         private Boolean containsSyntheticMedia;
+        private String playlistId;
 
         public Builder format(YouTubeFormat format) { this.format = format; return this; }
         public Builder title(String title) { this.title = title; return this; }
@@ -44,9 +47,11 @@ public record YouTubeParams(
         public Builder tags(List<String> tags) { this.tags = tags; return this; }
         public Builder categoryId(String categoryId) { this.categoryId = categoryId; return this; }
         public Builder containsSyntheticMedia(Boolean containsSyntheticMedia) { this.containsSyntheticMedia = containsSyntheticMedia; return this; }
+        public Builder playlistId(String playlistId) { this.playlistId = playlistId; return this; }
 
         public YouTubeParams build() {
-            return new YouTubeParams(format, title, privacyStatus, coverUrl, coverFile, madeForKids, tags, categoryId, containsSyntheticMedia);
+            return new YouTubeParams(format, title, privacyStatus, coverUrl, coverFile, madeForKids, tags, categoryId, containsSyntheticMedia,
+                    playlistId);
         }
     }
 }

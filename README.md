@@ -8,7 +8,7 @@ Java client for the [Postproxy API](https://postproxy.dev). Uses Java records fo
 
 ```kotlin
 dependencies {
-    implementation("dev.postproxy:postproxy-java:1.0.0")
+    implementation("dev.postproxy:postproxy-java:1.15.0")
 }
 ```
 
@@ -16,7 +16,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'dev.postproxy:postproxy-java:1.0.0'
+    implementation 'dev.postproxy:postproxy-java:1.15.0'
 }
 ```
 
@@ -26,7 +26,7 @@ dependencies {
 <dependency>
     <groupId>dev.postproxy</groupId>
     <artifactId>postproxy-java</artifactId>
-    <version>1.0.0</version>
+    <version>1.15.0</version>
 </dependency>
 ```
 
@@ -539,6 +539,10 @@ switch (event.type()) {
         var data = WebhookEvents.asPlatformPost(event);
         System.out.println("Edit on " + data.platform() + ": " + data.status());
     }
+    case CHAT_THREAD_CONTROL_CHANGED -> {
+        var data = WebhookEvents.asThreadControlChanged(event);
+        System.out.println("Chat " + data.chat().id() + " now owned by " + data.newOwnerAppId());
+    }
     case MESSAGE_TEMPLATE_STATUS_UPDATED -> {
         var data = WebhookEvents.asMessageTemplateEvent(event);
         System.out.println(data.name() + ": " + data.status());
@@ -551,8 +555,8 @@ Event types:
 
 - **Posts:** `post.processed`, `post.imported`, `platform_post.published`, `platform_post.failed`, `platform_post.failed_waiting_for_retry`, `platform_post.edited`, `platform_post.edit_failed`, `platform_post.insights`, `media.failed`
 - **Profiles:** `profile.connected`, `profile.disconnected`, `profile.stats`, `profile.placements_synced`, `placement.orphaned`, `placement.restored`
-- **Comments:** `comment.created`, `comment.failed`, `comment.failed_waiting_for_retry`, `comment.delivery_unconfirmed`, `comment.edited`, `comment.edit_failed`, `profile_comment.created`, `profile_comment.failed`, `profile_comment.failed_waiting_for_retry`, `profile_comment.deleted`
-- **Messages:** `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`, `referral.received`
+- **Comments:** `comment.created`, `comment.failed`, `comment.failed_waiting_for_retry`, `comment.delivery_unconfirmed`, `comment.edited`, `comment.edit_failed`, `profile_comment.created`, `profile_comment.failed`, `profile_comment.failed_waiting_for_retry`, `profile_comment.edited`, `profile_comment.deleted`
+- **Messages:** `message.received`, `message.sent`, `message.delivered`, `message.read`, `message.edited`, `message.deleted`, `message.failed_waiting_for_retry`, `message.failed`, `reaction.received`, `referral.received`, `chat.thread_control_changed`, `chat.thread_control_requested`
 - **WhatsApp:** `message_template.status_updated`, `message_template.category_updated`, `placement.name_status_updated`, `placement.quality_updated`, `whatsapp.automatic_event`
 
 Typed payloads (decoders on `WebhookEvents`):
@@ -560,14 +564,16 @@ Typed payloads (decoders on `WebhookEvents`):
 | Payload | Events | Decoder |
 | --- | --- | --- |
 | `PlatformPostData` | `platform_post.*` (except `insights`) | `asPlatformPost` |
-| `ProfileEventData` | `profile.connected`, `profile.disconnected` | `asProfileEvent` |
+| `ProfileEventData` | `profile.connected`, `profile.disconnected` (with `error` / `errorDetails` when PostProxy disconnected it) | `asProfileEvent` |
 | `PlacementsSyncedData` | `profile.placements_synced` | `asPlacementsSynced` |
 | `PlacementEventData` | `placement.orphaned`, `placement.restored`, `placement.name_status_updated`, `placement.quality_updated` | `asPlacementEvent` |
 | `CommentCreatedData` | the six `comment.*` events | `asCommentCreated` |
-| `ProfileCommentCreatedData` | the four `profile_comment.*` events | `asProfileCommentCreated` |
+| `ProfileCommentCreatedData` | the five `profile_comment.*` events | `asProfileCommentCreated` |
 | `MessageEventData` | the eight `message.*` events | `asMessageEvent` |
 | `ReactionEventData` | `reaction.received` | `asReactionEvent` |
 | `ReferralEventData` | `referral.received` | `asReferral` |
+| `ThreadControlChangedEventData` | `chat.thread_control_changed` | `asThreadControlChanged` |
+| `ThreadControlRequestedEventData` | `chat.thread_control_requested` | `asThreadControlRequested` |
 | `MessageTemplateEventData` | `message_template.status_updated`, `message_template.category_updated` | `asMessageTemplateEvent` |
 | `WhatsAppAutomaticEventData` | `whatsapp.automatic_event` | `asWhatsAppAutomaticEvent` |
 
@@ -723,6 +729,14 @@ client.chats().unarchive(chat.id());
 client.chats().markRead(chat.id());
 client.chats().startTyping(chat.id());
 client.chats().stopTyping(chat.id());
+
+// Thread control (Facebook & Instagram): move the conversation between Meta apps sharing
+// the inbox. Each returns the chat; metadata().get("thread_control") holds the owner.
+client.chats().passThreadControl(chat.id(), "263902037430900", "escalated to support");
+client.chats().takeThreadControl(chat.id());
+client.chats().releaseThreadControl(chat.id());
+client.chats().requestThreadControl(chat.id());
+var owner = client.chats().threadOwner(chat.id()); // appId(), expiresAt()
 
 // List messages in a chat
 var messages = client.messages().list(chat.id(), ListMessagesParams.builder()
@@ -1025,6 +1039,24 @@ System.out.println(mention.urn()); // "urn:li:organization:123"
 var audio = client.profiles().instagramAvailableAudio("ig-profile-id",
         InstagramAudioType.MUSIC, "summer", null); // or ORIGINAL_SOUND
 
+// Instagram (Facebook login): incoming collaboration invites
+var invites = client.profiles().instagramCollaborationInvites("ig-profile-id"); // or (id, after)
+client.profiles().acceptInstagramCollaborationInvite("ig-profile-id",
+        invites.collaborationInvites().get(0).mediaId());
+client.profiles().declineInstagramCollaborationInvite("ig-profile-id", "17890000000000001");
+
+// Pinterest boards — a board is a placement; its id is the boardId you publish to
+var board = client.profiles().createPinterestBoard("pin-profile-id", "Summer Recipes",
+        "Light dinners for hot days", PinterestBoardPrivacy.PUBLIC); // or PROTECTED
+client.profiles().deletePinterestBoard("pin-profile-id", board.id()); // also deletes its Pins
+
+// YouTube playlists — publish into one with YouTubeParams.playlistId
+var playlists = client.profiles().youtubePlaylists("yt-profile-id"); // data(), nextPageToken()
+var playlist = client.profiles().createYouTubePlaylist("yt-profile-id", "Tutorials",
+        "Step-by-step guides", YouTubePrivacy.PUBLIC);
+client.profiles().updateYouTubePlaylist("yt-profile-id", playlist.id(), null, null, YouTubePrivacy.UNLISTED);
+client.profiles().deleteYouTubePlaylist("yt-profile-id", playlist.id());
+
 // Facebook Page about / contact info
 var page = client.profiles().facebookPage("fb-profile-id", "page-id");
 client.profiles().updateFacebookPage("fb-profile-id", "page-id", Map.of(
@@ -1272,6 +1304,17 @@ gbp.createMedia("gbp-profile-id", "location-id", "https://example.com/storefront
     "EXTERIOR", "PHOTO", null, null, null);
 var media = gbp.media("gbp-profile-id", "location-id");
 gbp.deleteMedia("gbp-profile-id", "location-id", "accounts/1/locations/1/media/9");
+
+// Search keywords that showed the location, month by month (max 12 months).
+// Unlike the calls above, this returns a typed SearchKeywordsResponse.
+var keywords = gbp.searchKeywords("gbp-profile-id", "location-id", "2026-07", "2026-09");
+for (var month : keywords.months()) {
+    for (var k : month.keywords()) {
+        // Low-volume keywords have impressions() == null and an impressionsThreshold() bound
+        System.out.println(month.month() + " " + k.keyword() + " "
+            + (k.impressions() != null ? k.impressions() : "<" + k.impressionsThreshold()));
+    }
+}
 ```
 
 ### WhatsApp management
@@ -1407,6 +1450,13 @@ Key types:
 | `FollowerHistoryResponse` / `FollowerHistory` | data → profileId, platform, placementId, from, to, records (`FollowerHistoryRecord`: date, followersGained, followersLost, followersChange, followersTotal) |
 | `ParticipantStatus` | isVerifiedUser, isUserFollowBusiness, isBusinessFollowUser, fetchedAt |
 | `ResolvedMention` | urn, type, name, vanityName |
+| `ThreadOwner` | appId, expiresAt — both null when the thread is idle |
+| `InstagramCollaborationInvitesResponse` / `InstagramCollaborationInvite` | collaborationInvites → mediaId, mediaOwnerUsername, caption, mediaUrl; nextCursor |
+| `InstagramCollaborationInviteResult` | mediaId, accepted, declined |
+| `PinterestBoardDeleted` | deleted, boardId |
+| `YouTubePlaylistsResponse` / `YouTubePlaylist` | data → id, title, description, privacyStatus, itemCount, thumbnailUrl, publishedAt; nextPageToken |
+| `YouTubePlaylistDeleted` | deleted, playlistId |
+| `SearchKeywordsResponse` / `SearchKeywordsMonth` / `SearchKeyword` | months → month, keywords → keyword, impressions, impressionsThreshold |
 | `Chat` | id, profileId, platform, externalPlacementId, group, participantExternalId, participantUsername, participantName, participantAvatarUrl, externalConversationId, lastInboundAt, lastOutboundAt, lastMessageAt, metadata, archived, withinMessagingWindow, createdAt |
 | `Message` | id, chatId, externalId, direction, body, status, tag, externalCommentId, errorMessage, errorDetails, platformData, externalPostedAt, externalDeliveredAt, externalReadAt, externalEditedAt, replyToExternalId, replyMarkup, quickReplies, buttons, card, elements, tappedAction, storyReply, interactive, location, contacts, template, externalDeletedAt, reactions, attachments, isUnsupported, createdAt |
 | `MessageElement` | title, subtitle, imageUrl, defaultAction, buttons |
@@ -1437,11 +1487,11 @@ Key types:
 | Type | Platform |
 |---|---|
 | `FacebookParams` | format (`post`, `story`, `reel`), title, firstComment, pageId, link, altText, madeWithAi, countries |
-| `InstagramParams` | format (`post`, `reel`, `story`), firstComment, collaborators, coverUrl, coverFile, audioName, audioId, audioVolume, videoVolume, stripAudio, trialStrategy (`MANUAL`, `SS_PERFORMANCE`), thumbOffset, userTags, altText, madeWithAi |
+| `InstagramParams` | format (`post`, `reel`, `story`), firstComment, collaborators, coverUrl, coverFile, audioName, audioId, audioVolume, videoVolume, stripAudio, trialStrategy (`MANUAL`, `SS_PERFORMANCE`), thumbOffset, userTags, altText, madeWithAi, disableComment, locationId, shareToFeed (reels) |
 | `InstagramUserTag` | username, x, y, mediaIndex |
 | `TikTokParams` | format (`video`, `image`), privacyStatus, photoCoverIndex, autoAddMusic, madeWithAi, disableComment, disableDuet, disableStitch, brandContentToggle, brandOrganicToggle, uploadAsDraft, coverUrl, coverFile, thumbOffset |
-| `LinkedInParams` | format (`post`, `poll`), organizationId, reshareUrn, altText, countries, pollQuestion, pollOptions (2-4), pollDurationDays (1, 3, 7, 14) |
-| `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl, coverFile, madeForKids, tags, categoryId, containsSyntheticMedia |
+| `LinkedInParams` | format (`post`, `poll`), organizationId, reshareUrn, altText, countries, pollQuestion, pollOptions (2-4), pollDurationDays (1, 3, 7, 14), documentTitle, firstComment |
+| `YouTubeParams` | format (`post`), title, privacyStatus, coverUrl, coverFile, madeForKids, tags, categoryId, containsSyntheticMedia, playlistId |
 | `PinterestParams` | format (`pin`), title, boardId, destinationLink, coverUrl, coverFile, thumbOffset, altText |
 | `ThreadsParams` | format (`post`), altText, topicTag |
 | `TwitterParams` | format (`post`, `poll`), altText, pollOptions (2-4 choices, max 25 chars each; required for `poll`), pollDurationMinutes (5-10080; required for `poll`) |
